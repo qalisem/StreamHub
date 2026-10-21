@@ -39,14 +39,32 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     };
   };
 
+  const refresh = (subscription) => {
+    if (!subscription || now().getTime() < new Date(subscription.period_end).getTime()) return subscription;
+    if (subscription.status === 'cancelled') {
+      db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(subscription.id);
+      return null;
+    }
+    if (subscription.status === 'active' && subscription.pending_plan_code) {
+      const nextPeriodEnd = new Date(new Date(subscription.period_end).getTime() + 30 * DAY_MS);
+      db.prepare(`UPDATE subscriptions
+        SET plan_code = pending_plan_code, pending_plan_code = NULL, period_end = ?
+        WHERE id = ?`).run(nextPeriodEnd.toISOString(), subscription.id);
+      return getCurrent.get(subscription.user_id);
+    }
+    return subscription;
+  };
+
+  const currentFor = (userId) => refresh(getCurrent.get(userId));
+
   router.get('/subscription', requireAuth, (req, res) => {
-    res.json({ subscription: serialize(getCurrent.get(req.user.id)) });
+    res.json({ subscription: serialize(currentFor(req.user.id)) });
   });
 
   router.post('/subscription', requireAuth, (req, res) => {
     const plan = getPlan.get(String(req.body.planCode || '').toLowerCase());
     if (!plan) return res.status(400).json({ error: 'Choose a valid plan' });
-    if (getCurrent.get(req.user.id)) return res.status(409).json({ error: 'You already have a current plan' });
+    if (currentFor(req.user.id)) return res.status(409).json({ error: 'You already have a current plan' });
 
     let payment;
     try {
@@ -80,6 +98,64 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     });
 
     res.status(201).json({ subscription: serialize(createSubscription()) });
+  });
+
+  router.post('/subscription/change', requireAuth, (req, res) => {
+    const plan = getPlan.get(String(req.body.planCode || '').toLowerCase());
+    if (!plan) return res.status(400).json({ error: 'Choose a valid plan' });
+    const subscription = currentFor(req.user.id);
+    if (!subscription || subscription.status !== 'active') {
+      return res.status(400).json({ error: 'You need an active plan to change it' });
+    }
+
+    if (plan.code === subscription.plan_code) {
+      db.prepare('UPDATE subscriptions SET pending_plan_code = NULL WHERE id = ?').run(subscription.id);
+      return res.json({
+        subscription: serialize(getCurrent.get(req.user.id)),
+        message: `You will stay on ${plan.name}`,
+      });
+    }
+
+    if (plan.rank < subscription.rank) {
+      db.prepare('UPDATE subscriptions SET pending_plan_code = ? WHERE id = ?').run(plan.code, subscription.id);
+      return res.json({
+        subscription: serialize(getCurrent.get(req.user.id)),
+        message: `Switching to ${plan.name} at the end of the billing cycle`,
+      });
+    }
+
+    const changedAt = now();
+    const msLeft = Math.max(0, new Date(subscription.period_end).getTime() - changedAt.getTime());
+    const chargedCents = Math.round((plan.price_cents - subscription.price_cents) * msLeft / (30 * DAY_MS));
+    const upgrade = db.transaction(() => {
+      db.prepare('UPDATE subscriptions SET plan_code = ?, pending_plan_code = NULL WHERE id = ?')
+        .run(plan.code, subscription.id);
+      db.prepare(`INSERT INTO payments
+        (user_id, subscription_id, plan_code, amount_cents, card_last4, status, description, created_at)
+        VALUES (?, ?, ?, ?, ?, 'succeeded', ?, ?)`)
+        .run(req.user.id, subscription.id, plan.code, chargedCents, subscription.card_last4,
+          `Prorated upgrade to ${plan.name}`, changedAt.toISOString());
+      return getCurrent.get(req.user.id);
+    });
+    res.json({
+      subscription: serialize(upgrade()),
+      message: `Upgraded to ${plan.name}`,
+      chargedCents,
+    });
+  });
+
+  router.post('/subscription/cancel', requireAuth, (req, res) => {
+    const subscription = currentFor(req.user.id);
+    if (!subscription || subscription.status !== 'active') {
+      return res.status(400).json({ error: 'You do not have an active plan to cancel' });
+    }
+    db.prepare(`UPDATE subscriptions
+      SET status = 'cancelled', cancelled_at = ?, pending_plan_code = NULL
+      WHERE id = ?`).run(now().toISOString(), subscription.id);
+    res.json({
+      subscription: serialize(getCurrent.get(req.user.id)),
+      message: 'Subscription cancelled. Access continues until the end of the billing cycle.',
+    });
   });
 
   return router;
