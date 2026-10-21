@@ -9,6 +9,7 @@ import TitleDetail from './pages/TitleDetail';
 import Admin from './pages/Admin';
 import Plans from './pages/Plans';
 import Account from './pages/Account';
+import Checkout from './pages/Checkout';
 import './styles.css';
 
 function Nav() {
@@ -63,6 +64,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/register" element={<Register />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/account" element={<LoggedInOnly><Account /></LoggedInOnly>} />
+          <Route path="/checkout/:plan" element={<LoggedInOnly><Checkout /></LoggedInOnly>} />
           <Route path="/admin" element={<StaffOnly><Admin /></StaffOnly>} />
           <Route path="*" element={<p className="page">Page not found.</p>} />
         </Routes>

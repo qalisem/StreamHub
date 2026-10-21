@@ -56,10 +56,18 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .plan-action, .plan-current { display: block; margin-top: auto; text-align: center; width: 100%; }
 .plan-current { border: 1px solid var(--ok); border-radius: 6px; color: var(--ok); font-weight: 700; padding: 9px 16px; }
 .account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.subscription-card { margin-bottom: 20px; }
+.subscription-card h2 { margin-top: 0; }
+.subscription-card h3 { font-size: 22px; margin-bottom: 6px; }
+.status-badge { background: #1f6335; border-radius: 99px; color: #b8f5c7; font-size: 12px; margin-left: 6px; padding: 3px 8px; text-transform: capitalize; vertical-align: middle; }
+.welcome { background: #1f6335; border: 1px solid #2d8249; border-radius: 6px; color: #d8ffe2; padding: 12px; }
 .account-grid h2 { margin-top: 0; }
 .account-grid input[readonly] { color: var(--muted); cursor: not-allowed; }
+.checkout-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.checkout-fields label { min-width: 0; }
+.checkout-fields input { width: 100%; }
 @media (max-width: 700px) {
-  .detail, .two-col, .plans-grid, .account-grid { grid-template-columns: 1fr; }
+  .detail, .two-col, .plans-grid, .account-grid, .checkout-fields { grid-template-columns: 1fr; }
   .detail img { max-width: 260px; }
   .table th:nth-child(2), .table td:nth-child(2), .table th:nth-child(5), .table td:nth-child(5) { display: none; }
 }

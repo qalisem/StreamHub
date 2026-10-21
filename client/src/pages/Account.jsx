@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 
 export default function Account() {
   const { user, updateUser } = useAuth();
+  const location = useLocation();
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionError, setSubscriptionError] = useState('');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
   const [profileMessage, setProfileMessage] = useState('');
@@ -13,6 +17,11 @@ export default function Account() {
   const [busy, setBusy] = useState('');
 
   useEffect(() => setDisplayName(user?.displayName || ''), [user?.displayName]);
+  useEffect(() => {
+    api('/subscription')
+      .then((data) => setSubscription(data.subscription))
+      .catch((error) => setSubscriptionError(error.message));
+  }, []);
 
   const saveProfile = async (event) => {
     event.preventDefault();
@@ -45,6 +54,18 @@ export default function Account() {
   return (
     <main className="page account-page">
       <h1>Account</h1>
+      {location.state?.welcome && <p className="welcome" role="status">{location.state.welcome}</p>}
+      {subscriptionError && <p className="error" role="alert">{subscriptionError}</p>}
+      <section className="card subscription-card">
+        <h2>Subscription</h2>
+        {subscription ? (
+          <>
+            <h3>{subscription.plan.name} <span className="status-badge">{subscription.status}</span></h3>
+            <p className="muted">${(subscription.plan.price_cents / 100).toFixed(2)}/month · {subscription.plan.quality} · card ending {subscription.cardLast4}</p>
+            <p>Next billing date: <strong>{new Date(subscription.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
+          </>
+        ) : <p className="muted">You do not have a plan yet. <Link to="/plans">See plans</Link>.</p>}
+      </section>
       <div className="account-grid">
         <section className="card">
           <h2>Profile</h2>
