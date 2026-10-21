@@ -44,8 +44,19 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
 .row-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.plans-page > h1 { margin-bottom: 6px; }
+.plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+.plan-card { display: flex; flex-direction: column; min-height: 310px; }
+.plan-card.featured { border-color: var(--accent); }
+.plan-card h2 { margin: 10px 0 4px; }
+.popular { align-self: flex-start; background: var(--accent); border-radius: 99px; color: #fff; font-size: 12px; padding: 4px 10px; }
+.plan-price { font-size: 30px; font-weight: 800; margin: 6px 0; }
+.plan-price small { color: var(--muted); font-size: 13px; font-weight: 500; }
+.plan-card ul { color: var(--muted); line-height: 1.9; margin: 0 0 18px; padding-left: 20px; }
+.plan-action, .plan-current { display: block; margin-top: auto; text-align: center; width: 100%; }
+.plan-current { border: 1px solid var(--ok); border-radius: 6px; color: var(--ok); font-weight: 700; padding: 9px 16px; }
 @media (max-width: 700px) {
-  .detail, .two-col { grid-template-columns: 1fr; }
+  .detail, .two-col, .plans-grid { grid-template-columns: 1fr; }
   .detail img { max-width: 260px; }
   .table th:nth-child(2), .table td:nth-child(2), .table th:nth-child(5), .table td:nth-child(5) { display: none; }
 }

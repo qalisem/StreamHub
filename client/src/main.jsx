@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import Catalog from './pages/Catalog';
 import TitleDetail from './pages/TitleDetail';
 import Admin from './pages/Admin';
+import Plans from './pages/Plans';
 import './styles.css';
 
 function Nav() {
@@ -17,6 +18,7 @@ function Nav() {
       <Link to="/" className="brand">StreamHub</Link>
       <nav>
         <Link to="/">Browse</Link>
+        <Link to="/plans">Plans</Link>
         {isStaff(user) && <Link to="/admin">Manage titles</Link>}
         {user ? (
           <>
@@ -51,6 +53,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/title/:id" element={<TitleDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/plans" element={<Plans />} />
           <Route path="/admin" element={<StaffOnly><Admin /></StaffOnly>} />
           <Route path="*" element={<p className="page">Page not found.</p>} />
         </Routes>
