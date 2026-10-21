@@ -31,6 +31,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .tile { text-decoration: none; display: grid; gap: 8px; transition: transform .15s; }
 .tile:hover { transform: translateY(-3px); }
 .tile img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; background: var(--card); }
+.poster-wrap { display: block; position: relative; }
+.lock-badge { background: rgba(15, 17, 21, .9); border: 1px solid var(--line); border-radius: 99px; bottom: 9px; font-size: 12px; padding: 4px 8px; position: absolute; right: 7px; text-transform: capitalize; }
 .tile div { display: grid; gap: 2px; font-size: 14px; }
 .pager { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 28px 0; }
 .empty { text-align: center; padding: 60px 0; color: var(--muted); }
@@ -40,6 +42,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .meta { color: var(--muted); }
 .tier { text-transform: capitalize; background: #2a2f3a; padding: 2px 8px; border-radius: 99px; font-size: 13px; }
 .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.gate-error { background: #351619; border: 1px solid #773036; border-radius: 6px; color: #ffb5ba; padding: 12px; }
+.player { background: #090a0d; border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; padding: 24px; }
+.progress { background: #2a2f3a; border-radius: 99px; height: 6px; overflow: hidden; }
+.progress span { background: var(--accent); display: block; height: 100%; width: 36%; }
 .search { width: 100%; margin: 20px 0 10px; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }

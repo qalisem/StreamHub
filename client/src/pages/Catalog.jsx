@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { isStaff, useAuth } from '../auth';
 
 const EMPTY = { q: '', genre: '', type: '', yearFrom: '', yearTo: '', minRating: '', sort: 'newest' };
+const RANKS = { basic: 1, standard: 2, premium: 3 };
 
 export default function Catalog() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState(EMPTY);
   const [query, setQuery] = useState(EMPTY);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [genres, setGenres] = useState([]);
+  const [subscription, setSubscription] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => { api('/titles/genres').then(setGenres).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!user || isStaff(user)) return setSubscription(null);
+    api('/subscription').then((result) => setSubscription(result.subscription)).catch(() => setSubscription(null));
+  }, [user]);
 
   useEffect(() => {
     const params = new URLSearchParams({ page });
@@ -54,7 +62,10 @@ export default function Catalog() {
             <div className="grid">
               {data.items.map((t) => (
                 <Link key={t.id} to={`/title/${t.id}`} className="tile">
-                  <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
+                  <span className="poster-wrap">
+                    <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
+                    {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
+                  </span>
                   <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · ★ {t.rating}</span></div>
                 </Link>
               ))}
