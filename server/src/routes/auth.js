@@ -40,5 +40,31 @@ module.exports = (db) => {
     res.json({ user: publicUser(user) });
   });
 
+  r.put('/me', requireAuth, (req, res) => {
+    const displayName = String(req.body.displayName || '').trim();
+    if (!displayName || displayName.length > 60) {
+      return res.status(400).json({ error: 'Display name must be between 1 and 60 characters' });
+    }
+    const result = db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.user.id);
+    if (!result.changes) return res.status(404).json({ error: 'User not found' });
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    res.json({ user: publicUser(user) });
+  });
+
+  r.put('/password', requireAuth, (req, res) => {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!bcrypt.compareSync(currentPassword, user.password_hash)) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    if (!PASSWORD_RE.test(newPassword)) {
+      return res.status(400).json({ error: 'New password needs 8+ characters with a letter and a number' });
+    }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(newPassword, 10), user.id);
+    res.json({ message: 'Password changed successfully' });
+  });
+
   return r;
 };

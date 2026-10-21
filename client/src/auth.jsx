@@ -18,9 +18,10 @@ export function AuthProvider({ children }) {
   const save = ({ token, user }) => { localStorage.setItem('token', token); setUser(user); };
   const login = async (email, password) => save(await api('/auth/login', { method: 'POST', body: { email, password } }));
   const register = async (form) => save(await api('/auth/register', { method: 'POST', body: form }));
+  const updateUser = (nextUser) => setUser(nextUser);
   const logout = () => { localStorage.removeItem('token'); setUser(null); };
 
-  return <AuthContext.Provider value={{ user, ready, login, register, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, ready, login, register, updateUser, logout }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);
