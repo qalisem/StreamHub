@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-function createApp(db) {
+function createApp(db, { now = () => new Date() } = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json());

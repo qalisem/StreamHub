@@ -15,14 +15,34 @@ function poster(name, color, genre) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
-function seed(db, count = 50) {
+function seed(db, count = 50, { now = () => new Date() } = {}) {
   const users = [
     ['admin@streamhub.test', 'Admin123', 'Admin', 'admin'],
     ['content@streamhub.test', 'Content123', 'Content Manager', 'content_manager'],
     ['user@streamhub.test', 'User1234', 'Demo User', 'subscriber'],
+    ['basic@streamhub.test', 'Basic1234', 'Basic Subscriber', 'subscriber'],
   ];
   const addUser = db.prepare('INSERT OR IGNORE INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)');
   users.forEach(([e, p, n, r]) => addUser.run(e, bcrypt.hashSync(p, 10), n, r));
+
+  const basicUser = db.prepare("SELECT id FROM users WHERE email = 'basic@streamhub.test'").get();
+  const existingBasicSubscription = db.prepare(`SELECT id FROM subscriptions
+    WHERE user_id = ? AND status IN ('active','cancelled','past_due')`).get(basicUser.id);
+  if (!existingBasicSubscription) {
+    const startedAt = now();
+    const periodEnd = new Date(startedAt.getTime() + 30 * 86400000);
+    const seedBasicSubscription = db.transaction(() => {
+      const subscription = db.prepare(`INSERT INTO subscriptions
+        (user_id, plan_code, status, card_last4, started_at, period_end)
+        VALUES (?, 'basic', 'active', '4242', ?, ?)`)
+        .run(basicUser.id, startedAt.toISOString(), periodEnd.toISOString());
+      db.prepare(`INSERT INTO payments
+        (user_id, subscription_id, plan_code, amount_cents, card_last4, status, description, created_at)
+        VALUES (?, ?, 'basic', 899, '4242', 'succeeded', 'Initial Basic subscription', ?)`)
+        .run(basicUser.id, subscription.lastInsertRowid, startedAt.toISOString());
+    });
+    seedBasicSubscription();
+  }
 
   const add = db.prepare(`INSERT INTO titles (name, type, genre, year, rating, runtime, synopsis, cast_list, poster_url, trailer_url, tier)
     VALUES (@name, @type, @genre, @year, @rating, @runtime, @synopsis, @cast_list, @poster_url, @trailer_url, @tier)`);
