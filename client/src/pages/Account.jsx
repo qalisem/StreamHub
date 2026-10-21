@@ -7,7 +7,9 @@ export default function Account() {
   const { user, updateUser } = useAuth();
   const location = useLocation();
   const [subscription, setSubscription] = useState(null);
+  const [plans, setPlans] = useState([]);
   const [subscriptionError, setSubscriptionError] = useState('');
+  const [subscriptionMessage, setSubscriptionMessage] = useState('');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
   const [profileMessage, setProfileMessage] = useState('');
@@ -18,10 +20,41 @@ export default function Account() {
 
   useEffect(() => setDisplayName(user?.displayName || ''), [user?.displayName]);
   useEffect(() => {
-    api('/subscription')
-      .then((data) => setSubscription(data.subscription))
+    Promise.all([api('/subscription'), api('/plans')])
+      .then(([subscriptionData, planData]) => {
+        setSubscription(subscriptionData.subscription);
+        setPlans(planData);
+      })
       .catch((error) => setSubscriptionError(error.message));
   }, []);
+
+  const changePlan = async (planCode) => {
+    setSubscriptionError(''); setSubscriptionMessage(''); setBusy('subscription');
+    try {
+      const data = await api('/subscription/change', { method: 'POST', body: { planCode } });
+      setSubscription(data.subscription);
+      const charge = data.chargedCents == null ? '' : ` Charged $${(data.chargedCents / 100).toFixed(2)}.`;
+      setSubscriptionMessage(`${data.message}.${charge}`);
+    } catch (error) {
+      setSubscriptionError(error.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const cancelSubscription = async () => {
+    if (!window.confirm('Cancel your subscription at the end of this billing cycle?')) return;
+    setSubscriptionError(''); setSubscriptionMessage(''); setBusy('subscription');
+    try {
+      const data = await api('/subscription/cancel', { method: 'POST' });
+      setSubscription(data.subscription);
+      setSubscriptionMessage(data.message);
+    } catch (error) {
+      setSubscriptionError(error.message);
+    } finally {
+      setBusy('');
+    }
+  };
 
   const saveProfile = async (event) => {
     event.preventDefault();
@@ -56,13 +89,33 @@ export default function Account() {
       <h1>Account</h1>
       {location.state?.welcome && <p className="welcome" role="status">{location.state.welcome}</p>}
       {subscriptionError && <p className="error" role="alert">{subscriptionError}</p>}
+      {subscriptionMessage && <p className="welcome" role="status">{subscriptionMessage}</p>}
       <section className="card subscription-card">
         <h2>Subscription</h2>
         {subscription ? (
           <>
             <h3>{subscription.plan.name} <span className="status-badge">{subscription.status}</span></h3>
             <p className="muted">${(subscription.plan.price_cents / 100).toFixed(2)}/month · {subscription.plan.quality} · card ending {subscription.cardLast4}</p>
-            <p>Next billing date: <strong>{new Date(subscription.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
+            <p>{subscription.status === 'cancelled' ? 'Access ends' : 'Next billing date'}: <strong>{new Date(subscription.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
+            {subscription.pendingPlan && <p className="pending-plan">Switching to {subscription.pendingPlan.name} on {new Date(subscription.periodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>}
+            {subscription.status === 'active' && (
+              <>
+                <h4>Change plan</h4>
+                <div className="plan-buttons">
+                  {plans.map((plan) => {
+                    const current = plan.code === subscription.plan.code;
+                    const direction = plan.rank > subscription.plan.rank ? 'Upgrade' : 'Downgrade';
+                    return (
+                      <button key={plan.code} className={`btn ${current ? 'ghost' : ''}`} disabled={busy === 'subscription' || current} onClick={() => changePlan(plan.code)}>
+                        {current ? `Current plan · $${(plan.price_cents / 100).toFixed(2)}` : `${direction} to ${plan.name} · $${(plan.price_cents / 100).toFixed(2)}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                {subscription.pendingPlan && <button className="link" disabled={busy === 'subscription'} onClick={() => changePlan(subscription.plan.code)}>Undo pending change</button>}
+                <button className="link danger cancel-link" disabled={busy === 'subscription'} onClick={cancelSubscription}>Cancel subscription</button>
+              </>
+            )}
           </>
         ) : <p className="muted">You do not have a plan yet. <Link to="/plans">See plans</Link>.</p>}
       </section>
