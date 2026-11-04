@@ -76,6 +76,15 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .plan-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .plan-buttons .btn { font-size: 13px; }
 .cancel-link { display: block; margin-top: 16px; }
+.past-due-banner { background: #551f24; border: 1px solid #9b3f47; border-radius: 6px; color: #ffd4d7; padding: 12px; }
+.retry-form { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 10px; }
+.billing-history { margin-bottom: 20px; }
+.billing-history h2 { margin-top: 0; }
+.table-wrap { overflow-x: auto; }
+.receipt-card { margin: 18px 0; }
+.receipt-card dl { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+.receipt-card dt { color: var(--muted); }
+.receipt-card dd { margin: 0; }
 .account-grid h2 { margin-top: 0; }
 .account-grid input[readonly] { color: var(--muted); cursor: not-allowed; }
 .checkout-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -85,4 +94,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
   .detail, .two-col, .plans-grid, .account-grid, .checkout-fields { grid-template-columns: 1fr; }
   .detail img { max-width: 260px; }
   .table th:nth-child(2), .table td:nth-child(2), .table th:nth-child(5), .table td:nth-child(5) { display: none; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  .nav, .no-print { display: none !important; }
+  .receipt-card { border: 0; box-shadow: none; }
 }

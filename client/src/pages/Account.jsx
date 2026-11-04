@@ -10,6 +10,8 @@ export default function Account() {
   const [welcomeMessage, setWelcomeMessage] = useState(location.state?.welcome || '');
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [retryCard, setRetryCard] = useState({ name: '', number: '', expMonth: '', expYear: '', cvv: '' });
   const [subscriptionError, setSubscriptionError] = useState('');
   const [subscriptionMessage, setSubscriptionMessage] = useState('');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -27,10 +29,11 @@ export default function Account() {
     }
   }, [location.pathname, location.state?.welcome, navigate]);
   useEffect(() => {
-    Promise.all([api('/subscription'), api('/plans')])
-      .then(([subscriptionData, planData]) => {
+    Promise.all([api('/subscription'), api('/plans'), api('/payments')])
+      .then(([subscriptionData, planData, paymentData]) => {
         setSubscription(subscriptionData.subscription);
         setPlans(planData);
+        setPayments(paymentData);
       })
       .catch((error) => setSubscriptionError(error.message));
   }, []);
@@ -58,6 +61,26 @@ export default function Account() {
       setSubscriptionMessage(data.message);
     } catch (error) {
       setSubscriptionError(error.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const retryPayment = async (event) => {
+    event.preventDefault();
+    setSubscriptionError(''); setSubscriptionMessage(''); setBusy('retry');
+    try {
+      const data = await api('/subscription/retry', {
+        method: 'POST',
+        body: { card: { ...retryCard, expMonth: Number(retryCard.expMonth), expYear: Number(retryCard.expYear) } },
+      });
+      setSubscription(data.subscription);
+      setPayments(await api('/payments'));
+      setRetryCard({ name: '', number: '', expMonth: '', expYear: '', cvv: '' });
+      setSubscriptionMessage('Payment succeeded. Your subscription is active again.');
+    } catch (error) {
+      setSubscriptionError(error.message);
+      setPayments(await api('/payments').catch(() => payments));
     } finally {
       setBusy('');
     }
@@ -96,6 +119,7 @@ export default function Account() {
       <h1>Account</h1>
       {(subscriptionMessage || welcomeMessage) && <p className="welcome" role="status">{subscriptionMessage || welcomeMessage}</p>}
       {subscriptionError && <p className="error" role="alert">{subscriptionError}</p>}
+      {subscription?.status === 'past_due' && <p className="past-due-banner" role="alert">Your renewal payment failed. Update your card to restore playback.</p>}
       <section className="card subscription-card">
         <h2>Subscription</h2>
         {subscription ? (
@@ -103,6 +127,19 @@ export default function Account() {
             <h3>{subscription.plan.name} <span className={`status-badge status-badge--${subscription.status}`}>{subscription.status}</span></h3>
             <p className="muted">${(subscription.plan.price_cents / 100).toFixed(2)}/month · {subscription.plan.quality} · card ending {subscription.cardLast4}</p>
             <p>{subscription.status === 'cancelled' ? 'Access ends' : 'Next billing date'}: <strong>{new Date(subscription.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
+            {subscription.status === 'past_due' && (
+              <form className="form retry-form" onSubmit={retryPayment}>
+                <h4>Update payment method</h4>
+                <label>Name on card<input required value={retryCard.name} onChange={(e) => setRetryCard({ ...retryCard, name: e.target.value })} /></label>
+                <label>Card number<input required value={retryCard.number} onChange={(e) => setRetryCard({ ...retryCard, number: e.target.value })} /></label>
+                <div className="checkout-fields">
+                  <label>Month<input type="number" min="1" max="12" required value={retryCard.expMonth} onChange={(e) => setRetryCard({ ...retryCard, expMonth: e.target.value })} /></label>
+                  <label>Year<input type="number" required value={retryCard.expYear} onChange={(e) => setRetryCard({ ...retryCard, expYear: e.target.value })} /></label>
+                  <label>CVV<input inputMode="numeric" minLength="3" maxLength="4" required value={retryCard.cvv} onChange={(e) => setRetryCard({ ...retryCard, cvv: e.target.value })} /></label>
+                </div>
+                <button className="btn" disabled={busy === 'retry'}>{busy === 'retry' ? 'Retrying...' : 'Retry payment'}</button>
+              </form>
+            )}
             {subscription.pendingPlan && <p className="pending-plan">Switching to {subscription.pendingPlan.name} on {new Date(subscription.periodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>}
             {subscription.status === 'active' && (
               <>
@@ -124,6 +161,26 @@ export default function Account() {
             )}
           </>
         ) : <p className="muted">You do not have a plan yet. <Link to="/plans">See plans</Link>.</p>}
+      </section>
+      <section className="card billing-history">
+        <h2>Billing history</h2>
+        {payments.length ? (
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Card</th><th /></tr></thead>
+              <tbody>{payments.map((payment) => (
+                <tr key={payment.id}>
+                  <td>{new Date(payment.createdAt).toLocaleDateString()}</td>
+                  <td>{payment.description}</td>
+                  <td>${(payment.amountCents / 100).toFixed(2)}</td>
+                  <td className={payment.status === 'succeeded' ? 'success' : 'danger'}>{payment.status}</td>
+                  <td>•••• {payment.cardLast4}</td>
+                  <td><Link to={`/receipts/${payment.id}`}>Receipt</Link></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : <p className="muted">No payments yet.</p>}
       </section>
       <div className="account-grid">
         <section className="card">

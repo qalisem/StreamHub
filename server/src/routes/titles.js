@@ -1,10 +1,10 @@
 const express = require('express');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { refreshSubscription } = require('../billing');
 
 const FIELDS = ['name', 'type', 'genre', 'year', 'rating', 'runtime', 'synopsis', 'cast_list', 'poster_url', 'trailer_url', 'tier'];
 const SORTS = { newest: 'year DESC, id DESC', rating: 'rating DESC, name ASC', az: 'name COLLATE NOCASE ASC' };
 const PAGE_SIZE = 20; // FR-2.4
-const DAY_MS = 86400000;
 const TIER_RANKS = { basic: 1, standard: 2, premium: 3 };
 
 function validate(body, partial = false) {
@@ -60,24 +60,9 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     if (!title) return res.status(404).json({ error: 'Title not found' });
     if (['admin', 'content_manager'].includes(req.user.role)) return res.json({ ok: true, title });
 
-    const findSubscription = db.prepare(`SELECT s.*, p.rank
-      FROM subscriptions s JOIN plans p ON p.code = s.plan_code
-      WHERE s.user_id = ? AND s.status IN ('active','cancelled','past_due')`);
-    let subscription = findSubscription.get(req.user.id);
-    if (subscription && now().getTime() >= new Date(subscription.period_end).getTime()) {
-      if (subscription.status === 'cancelled') {
-        db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(subscription.id);
-        subscription = null;
-      } else if (subscription.status === 'active' && subscription.pending_plan_code) {
-        const nextPeriodEnd = new Date(new Date(subscription.period_end).getTime() + 30 * DAY_MS);
-        db.prepare(`UPDATE subscriptions
-          SET plan_code = pending_plan_code, pending_plan_code = NULL, period_end = ?
-          WHERE id = ?`).run(nextPeriodEnd.toISOString(), subscription.id);
-        subscription = findSubscription.get(req.user.id);
-      }
-    }
+    const subscription = refreshSubscription(db, req.user.id, now);
 
-    if (!subscription) {
+    if (!subscription || subscription.status === 'past_due') {
       return res.status(402).json({ error: 'Choose a plan to watch this title', requiredTier: title.tier });
     }
     if (subscription.rank < TIER_RANKS[title.tier]) {

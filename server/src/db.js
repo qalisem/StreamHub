@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS payments (
   amount_cents INTEGER NOT NULL,
   card_last4 TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('succeeded','declined')),
+  kind TEXT NOT NULL DEFAULT 'subscription' CHECK (kind IN ('subscription','upgrade','renewal','retry')),
   description TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
@@ -66,6 +67,10 @@ function createDb(file = process.env.DB_FILE || 'streamhub.db') {
   db.pragma('foreign_keys = ON');
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
+  const paymentColumns = db.prepare('PRAGMA table_info(payments)').all();
+  if (!paymentColumns.some((column) => column.name === 'kind')) {
+    db.exec("ALTER TABLE payments ADD COLUMN kind TEXT NOT NULL DEFAULT 'subscription' CHECK (kind IN ('subscription','upgrade','renewal','retry'))");
+  }
   const addPlan = db.prepare(`INSERT OR IGNORE INTO plans
     (code, name, price_cents, quality, screens, rank) VALUES (?, ?, ?, ?, ?, ?)`);
   const seedPlans = db.transaction(() => {

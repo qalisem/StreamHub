@@ -47,4 +47,8 @@ function charge(card, now = () => new Date()) {
   };
 }
 
-module.exports = { charge, luhn };
+function renew(last4) {
+  return { status: String(last4) === '0341' ? 'declined' : 'succeeded' };
+}
+
+module.exports = { charge, luhn, renew };
