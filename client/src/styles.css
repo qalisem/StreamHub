@@ -98,6 +98,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .history-item img { aspect-ratio: 2/3; border-radius: 5px; object-fit: cover; width: 70px; }
 .history-item > div { display: grid; gap: 8px; }
 .table-wrap { overflow-x: auto; }
+.price-editors { display: flex; flex-wrap: wrap; gap: 18px; }
+.price-editors form { align-items: end; display: flex; gap: 8px; }
+.price-editors label { display: grid; gap: 5px; }
+.price-editors input { width: 125px; }
+.admin-users .table select { min-width: 145px; }
+.active-toggle { white-space: nowrap; }
 .receipt-card { margin: 18px 0; }
 .receipt-card dl { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
 .receipt-card dt { color: var(--muted); }

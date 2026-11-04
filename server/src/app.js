@@ -7,6 +7,7 @@ function createApp(db, { now = () => new Date() } = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json());
+  app.use(require('./middleware/auth').rejectDeactivated(db));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/auth', require('./routes/auth')(db));
@@ -14,6 +15,7 @@ function createApp(db, { now = () => new Date() } = {}) {
   app.use('/api', require('./routes/subscriptions')(db, { now }));
   app.use('/api/watchlist', require('./routes/watchlist')(db, { now }));
   app.use('/api/history', require('./routes/history')(db));
+  app.use('/api/admin', require('./routes/admin')(db));
   app.use('/api/titles', require('./routes/titles')(db, { now }));
 
   // Serve the built React client in production

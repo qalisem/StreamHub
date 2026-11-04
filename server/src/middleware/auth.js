@@ -19,8 +19,24 @@ function requireAuth(req, res, next) {
   }
 }
 
+function rejectDeactivated(db) {
+  return (req, res, next) => {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return next();
+    try {
+      const payload = jwt.verify(token, SECRET);
+      const user = db.prepare('SELECT active FROM users WHERE id = ?').get(payload.id);
+      if (user && !user.active) return res.status(403).json({ error: 'This account has been deactivated' });
+    } catch {
+      // Authentication-protected routes return the normal invalid-session response.
+    }
+    next();
+  };
+}
+
 // FR-1.3: role checks enforced on the server
 const requireRole = (...roles) => (req, res, next) =>
   roles.includes(req.user?.role) ? next() : res.status(403).json({ error: 'Not allowed' });
 
-module.exports = { sign, requireAuth, requireRole };
+module.exports = { sign, requireAuth, requireRole, rejectDeactivated };

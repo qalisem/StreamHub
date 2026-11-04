@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'subscriber' CHECK (role IN ('subscriber','content_manager','admin')),
+  active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS titles (
@@ -84,6 +85,10 @@ function createDb(file = process.env.DB_FILE || 'streamhub.db') {
   const paymentColumns = db.prepare('PRAGMA table_info(payments)').all();
   if (!paymentColumns.some((column) => column.name === 'kind')) {
     db.exec("ALTER TABLE payments ADD COLUMN kind TEXT NOT NULL DEFAULT 'subscription' CHECK (kind IN ('subscription','upgrade','renewal','retry'))");
+  }
+  const userColumns = db.prepare('PRAGMA table_info(users)').all();
+  if (!userColumns.some((column) => column.name === 'active')) {
+    db.exec('ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
   }
   const addPlan = db.prepare(`INSERT OR IGNORE INTO plans
     (code, name, price_cents, quality, screens, rank) VALUES (?, ?, ?, ?, ?, ?)`);
