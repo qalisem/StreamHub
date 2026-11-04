@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth';
+import { isStaff, useAuth } from '../auth';
 
 export default function TitleDetail() {
   const { id } = useParams();
@@ -15,8 +15,17 @@ export default function TitleDetail() {
   const [positionSeconds, setPositionSeconds] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(0);
   const positionRef = useRef(0);
+  const [reviews, setReviews] = useState({ average: null, count: 0, reviews: [] });
+  const [reviewForm, setReviewForm] = useState({ rating: 5, body: '' });
+  const [reviewError, setReviewError] = useState('');
 
   useEffect(() => { api(`/titles/${id}`).then(setT).catch((e) => setError(e.message)); }, [id]);
+  const loadReviews = () => api(`/titles/${id}/reviews`).then((data) => {
+    setReviews(data);
+    const own = data.reviews.find((review) => review.userId === user?.id);
+    if (own) setReviewForm({ rating: own.rating, body: own.body });
+  }).catch((e) => setReviewError(e.message));
+  useEffect(() => { loadReviews(); }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user) return setInWatchlist(false);
     api('/watchlist')
@@ -91,6 +100,23 @@ export default function TitleDetail() {
     }
   };
 
+  const saveReview = async (event) => {
+    event.preventDefault();
+    setReviewError('');
+    try {
+      await api(`/titles/${id}/review`, { method: 'PUT', body: reviewForm });
+      await loadReviews();
+    } catch (requestError) { setReviewError(requestError.message); }
+  };
+
+  const deleteReview = async (reviewId, own = false) => {
+    try {
+      await api(own ? `/titles/${id}/review` : `/reviews/${reviewId}`, { method: 'DELETE' });
+      if (own) setReviewForm({ rating: 5, body: '' });
+      await loadReviews();
+    } catch (requestError) { setReviewError(requestError.message); }
+  };
+
   if (error) return <main className="page"><p className="error">{error}</p><Link to="/">Back to browse</Link></main>;
   if (!t) return <main className="page"><p className="muted">Loading...</p></main>;
 
@@ -119,6 +145,28 @@ export default function TitleDetail() {
         {t.trailer_url
           ? <iframe title="Trailer" src={t.trailer_url} allowFullScreen />
           : <p className="muted">Trailer not available.</p>}
+        <section className="reviews-section">
+          <h2>Ratings and reviews</h2>
+          <p className="review-average">{reviews.average == null ? 'No ratings yet' : `${reviews.average} ★ from ${reviews.count} ${reviews.count === 1 ? 'review' : 'reviews'}`}</p>
+          {user ? (
+            <form className="card form review-form" onSubmit={saveReview}>
+              <label>Your rating
+                <span className="star-picker">{[1, 2, 3, 4, 5].map((star) => <button type="button" className={star <= reviewForm.rating ? 'selected' : ''} onClick={() => setReviewForm({ ...reviewForm, rating: star })} key={star} aria-label={`${star} stars`}>★</button>)}</span>
+              </label>
+              <label>Review<textarea rows="4" maxLength="1000" value={reviewForm.body} onChange={(event) => setReviewForm({ ...reviewForm, body: event.target.value })} /></label>
+              <div className="actions"><button className="btn">Save review</button>{reviews.reviews.some((review) => review.userId === user.id) && <button type="button" className="link danger" onClick={() => deleteReview(null, true)}>Delete my review</button>}</div>
+            </form>
+          ) : <p><Link to="/login">Log in</Link> to leave a rating.</p>}
+          {reviewError && <p className="error" role="alert">{reviewError}</p>}
+          <div className="review-list">{reviews.reviews.map((review) => (
+            <article className="card" key={review.id}>
+              <div className="review-heading"><strong>{review.displayName}</strong><span>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span></div>
+              {review.body && <p>{review.body}</p>}
+              <span className="muted">{new Date(review.updatedAt).toLocaleDateString()}</span>
+              {isStaff(user) && <button className="link danger" onClick={() => deleteReview(review.id)}>Remove</button>}
+            </article>
+          ))}</div>
+        </section>
       </div>
     </main>
   );

@@ -114,7 +114,7 @@ export default function Catalog() {
                       <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
                       {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
                     </span>
-                    <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · ★ {t.rating}</span></div>
+                    <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · Catalog ★ {t.rating}</span>{t.review_average != null && <span className="review-score">Viewer ★ {t.review_average} ({t.review_count})</span>}</div>
                   </Link>
                   {user && <button className="btn ghost small watchlist-toggle" onClick={() => toggleWatchlist(t.id)}>{watchlistIds.has(t.id) ? '✓ In My List' : '+ My List'}</button>}
                 </article>

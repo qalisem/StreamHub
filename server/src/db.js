@@ -71,6 +71,16 @@ CREATE TABLE IF NOT EXISTS watch_history (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (user_id, title_id)
 );
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title_id INTEGER NOT NULL REFERENCES titles(id),
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  body TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (user_id, title_id)
+);
 CREATE INDEX IF NOT EXISTS idx_titles_genre ON titles(genre);
 CREATE INDEX IF NOT EXISTS idx_titles_year ON titles(year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_current_sub

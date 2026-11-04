@@ -69,7 +69,10 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     const clause = where.join(' AND ');
     const total = db.prepare(`SELECT COUNT(*) AS n FROM titles WHERE ${clause}`).get(params).n;
     const items = db.prepare(
-      `SELECT id, name, type, genre, year, rating, poster_url, tier FROM titles WHERE ${clause} ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
+      `SELECT id, name, type, genre, year, rating, poster_url, tier,
+        (SELECT ROUND(AVG(rating), 1) FROM reviews WHERE title_id = titles.id) AS review_average,
+        (SELECT COUNT(*) FROM reviews WHERE title_id = titles.id) AS review_count
+       FROM titles WHERE ${clause} ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
     ).all(params);
     res.json({ items, page, pageSize: PAGE_SIZE, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
   });
@@ -104,6 +107,47 @@ module.exports = (db, { now = () => new Date() } = {}) => {
         updated_at = excluded.updated_at`)
       .run(req.user.id, result.title.id, positionSeconds, durationSeconds, now().toISOString());
     res.json({ positionSeconds, durationSeconds, completed });
+  });
+
+  const reviewSummary = (titleId) => {
+    const summary = db.prepare('SELECT ROUND(AVG(rating), 1) AS average, COUNT(*) AS count FROM reviews WHERE title_id = ?').get(titleId);
+    const reviews = db.prepare(`SELECT r.id, r.user_id AS userId, r.rating, r.body,
+        u.display_name AS displayName, r.created_at AS createdAt, r.updated_at AS updatedAt
+      FROM reviews r JOIN users u ON u.id = r.user_id
+      WHERE r.title_id = ? ORDER BY r.updated_at DESC, r.id DESC`).all(titleId);
+    return { average: summary.average, count: summary.count, reviews };
+  };
+
+  r.get('/:id/reviews', (req, res) => {
+    if (!findTitle.get(req.params.id)) return res.status(404).json({ error: 'Title not found' });
+    res.json(reviewSummary(req.params.id));
+  });
+
+  r.put('/:id/review', requireAuth, (req, res) => {
+    if (!findTitle.get(req.params.id)) return res.status(404).json({ error: 'Title not found' });
+    const rating = req.body.rating;
+    const body = String(req.body.body || '');
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be a whole number from 1 to 5' });
+    }
+    if (body.length > 1000) return res.status(400).json({ error: 'Review must be at most 1000 characters' });
+    const existing = db.prepare('SELECT id FROM reviews WHERE user_id = ? AND title_id = ?').get(req.user.id, req.params.id);
+    const timestamp = now().toISOString();
+    if (existing) {
+      db.prepare('UPDATE reviews SET rating = ?, body = ?, updated_at = ? WHERE id = ?')
+        .run(rating, body, timestamp, existing.id);
+    } else {
+      db.prepare(`INSERT INTO reviews (user_id, title_id, rating, body, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)`).run(req.user.id, req.params.id, rating, body, timestamp, timestamp);
+    }
+    const saved = reviewSummary(req.params.id).reviews.find((review) => review.userId === req.user.id);
+    res.status(existing ? 200 : 201).json(saved);
+  });
+
+  r.delete('/:id/review', requireAuth, (req, res) => {
+    const result = db.prepare('DELETE FROM reviews WHERE user_id = ? AND title_id = ?').run(req.user.id, req.params.id);
+    if (!result.changes) return res.status(404).json({ error: 'Review not found' });
+    res.status(204).end();
   });
 
   // FR-2.7: detail page

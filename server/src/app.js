@@ -16,6 +16,7 @@ function createApp(db, { now = () => new Date() } = {}) {
   app.use('/api/watchlist', require('./routes/watchlist')(db, { now }));
   app.use('/api/history', require('./routes/history')(db));
   app.use('/api/admin', require('./routes/admin')(db));
+  app.use('/api/reviews', require('./routes/reviews')(db));
   app.use('/api/titles', require('./routes/titles')(db, { now }));
 
   // Serve the built React client in production
