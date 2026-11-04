@@ -11,6 +11,8 @@ export default function Account() {
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [accountTab, setAccountTab] = useState('account');
   const [retryCard, setRetryCard] = useState({ name: '', number: '', expMonth: '', expYear: '', cvv: '' });
   const [subscriptionError, setSubscriptionError] = useState('');
   const [subscriptionMessage, setSubscriptionMessage] = useState('');
@@ -29,11 +31,12 @@ export default function Account() {
     }
   }, [location.pathname, location.state?.welcome, navigate]);
   useEffect(() => {
-    Promise.all([api('/subscription'), api('/plans'), api('/payments')])
-      .then(([subscriptionData, planData, paymentData]) => {
+    Promise.all([api('/subscription'), api('/plans'), api('/payments'), api('/history')])
+      .then(([subscriptionData, planData, paymentData, historyData]) => {
         setSubscription(subscriptionData.subscription);
         setPlans(planData);
         setPayments(paymentData);
+        setHistory(historyData);
       })
       .catch((error) => setSubscriptionError(error.message));
   }, []);
@@ -117,6 +120,11 @@ export default function Account() {
   return (
     <main className="page account-page">
       <h1>Account</h1>
+      <div className="account-tabs" role="tablist" aria-label="Account sections">
+        <button className={accountTab === 'account' ? 'active' : ''} role="tab" aria-selected={accountTab === 'account'} onClick={() => setAccountTab('account')}>Account</button>
+        <button className={accountTab === 'history' ? 'active' : ''} role="tab" aria-selected={accountTab === 'history'} onClick={() => setAccountTab('history')}>History</button>
+      </div>
+      {accountTab === 'account' ? <>
       {(subscriptionMessage || welcomeMessage) && <p className="welcome" role="status">{subscriptionMessage || welcomeMessage}</p>}
       {subscriptionError && <p className="error" role="alert">{subscriptionError}</p>}
       {subscription?.status === 'past_due' && <p className="past-due-banner" role="alert">Your renewal payment failed. Update your card to restore playback.</p>}
@@ -206,6 +214,21 @@ export default function Account() {
           </form>
         </section>
       </div>
+      </> : (
+        <section className="card history-list">
+          <h2>Watch history</h2>
+          {history.length ? history.map((item) => (
+            <Link to={`/title/${item.titleId}`} className="history-item" key={item.titleId}>
+              <img src={item.posterUrl} alt={`${item.name} poster`} />
+              <div>
+                <strong>{item.name}</strong>
+                <div className="progress"><span style={{ width: `${item.percent}%` }} /></div>
+                <span className="muted">{item.percent}% watched · {new Date(item.updatedAt).toLocaleDateString()}</span>
+              </div>
+            </Link>
+          )) : <p className="muted">You have not watched anything yet.</p>}
+        </section>
+      )}
     </main>
   );
 }

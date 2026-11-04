@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -12,6 +12,9 @@ export default function TitleDetail() {
   const [playError, setPlayError] = useState('');
   const [playing, setPlaying] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
+  const [positionSeconds, setPositionSeconds] = useState(0);
+  const [durationSeconds, setDurationSeconds] = useState(0);
+  const positionRef = useRef(0);
 
   useEffect(() => { api(`/titles/${id}`).then(setT).catch((e) => setError(e.message)); }, [id]);
   useEffect(() => {
@@ -20,6 +23,49 @@ export default function TitleDetail() {
       .then((items) => setInWatchlist(items.some((item) => item.titleId === Number(id))))
       .catch(() => setInWatchlist(false));
   }, [id, user]);
+  useEffect(() => {
+    if (!user) {
+      setPositionSeconds(0);
+      positionRef.current = 0;
+      return;
+    }
+    api('/history')
+      .then((items) => {
+        const saved = items.find((item) => item.titleId === Number(id));
+        const position = saved?.positionSeconds || 0;
+        setPositionSeconds(position);
+        setDurationSeconds(saved?.durationSeconds || 0);
+        positionRef.current = position;
+      })
+      .catch(() => {});
+  }, [id, user]);
+
+  const saveProgress = async (position = positionRef.current) => {
+    if (!user || !t) return;
+    try {
+      const saved = await api(`/titles/${id}/progress`, { method: 'POST', body: { positionSeconds: position } });
+      setPositionSeconds(saved.positionSeconds);
+      setDurationSeconds(saved.durationSeconds);
+      positionRef.current = saved.positionSeconds;
+    } catch (requestError) {
+      setPlaying(false);
+      setPlayError(requestError.message);
+    }
+  };
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    const timer = window.setInterval(() => {
+      const nextPosition = positionRef.current + 10;
+      positionRef.current = nextPosition;
+      setPositionSeconds(nextPosition);
+      saveProgress(nextPosition);
+    }, 10000);
+    return () => {
+      window.clearInterval(timer);
+      saveProgress(positionRef.current);
+    };
+  }, [playing, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleWatchlist = async () => {
     if (!user) return navigate('/login');
@@ -37,6 +83,7 @@ export default function TitleDetail() {
     setPlayError('');
     try {
       await api(`/titles/${id}/play`, { method: 'POST' });
+      if (!durationSeconds) setDurationSeconds(Number(t.runtime || 0) * 60);
       setPlaying(true);
     } catch (requestError) {
       setPlaying(false);
@@ -64,8 +111,9 @@ export default function TitleDetail() {
         {playing && (
           <section className="player" aria-label={`Now playing ${t.name}`}>
             <strong>Now playing {t.name}</strong>
-            <p className="muted">Simulated playback</p>
-            <div className="progress"><span /></div>
+            <p className="muted">Simulated playback · resumed at {Math.floor(positionSeconds / 60)}:{String(positionSeconds % 60).padStart(2, '0')}</p>
+            <div className="progress"><span style={{ width: `${durationSeconds ? Math.min(100, positionSeconds * 100 / durationSeconds) : 0}%` }} /></div>
+            <button className="btn ghost small" onClick={() => setPlaying(false)}>Pause</button>
           </section>
         )}
         {t.trailer_url

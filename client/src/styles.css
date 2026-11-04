@@ -49,6 +49,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .player { background: #090a0d; border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; padding: 24px; }
 .progress { background: #2a2f3a; border-radius: 99px; height: 6px; overflow: hidden; }
 .progress span { background: var(--accent); display: block; height: 100%; width: 36%; }
+.player .btn { margin-top: 14px; }
+.continue-watching { margin-bottom: 24px; }
+.continue-watching h1 { font-size: 24px; }
+.continue-row { display: grid; grid-auto-columns: minmax(145px, 190px); grid-auto-flow: column; gap: 16px; overflow-x: auto; padding-bottom: 10px; }
+.continue-card { color: var(--text); display: grid; gap: 7px; text-decoration: none; }
+.continue-card img { aspect-ratio: 16/9; border-radius: 8px; object-fit: cover; width: 100%; }
+.continue-card .muted { font-size: 12px; }
 .search { width: 100%; margin: 20px 0 10px; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
@@ -83,6 +90,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .retry-form { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 10px; }
 .billing-history { margin-bottom: 20px; }
 .billing-history h2 { margin-top: 0; }
+.account-tabs { border-bottom: 1px solid var(--line); display: flex; gap: 6px; margin-bottom: 20px; }
+.account-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; padding: 10px 14px; }
+.account-tabs button.active { border-bottom-color: var(--accent); color: var(--text); }
+.history-list { display: grid; gap: 12px; }
+.history-item { align-items: center; border-bottom: 1px solid var(--line); color: var(--text); display: grid; gap: 14px; grid-template-columns: 70px 1fr; padding: 10px 0; text-decoration: none; }
+.history-item img { aspect-ratio: 2/3; border-radius: 5px; object-fit: cover; width: 70px; }
+.history-item > div { display: grid; gap: 8px; }
 .table-wrap { overflow-x: auto; }
 .receipt-card { margin: 18px 0; }
 .receipt-card dl { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }

@@ -15,6 +15,7 @@ export default function Catalog() {
   const [genres, setGenres] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [watchlistIds, setWatchlistIds] = useState(() => new Set());
+  const [continueWatching, setContinueWatching] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => { api('/titles/genres').then(setGenres).catch(() => {}); }, []);
@@ -23,10 +24,20 @@ export default function Catalog() {
     api('/subscription').then((result) => setSubscription(result.subscription)).catch(() => setSubscription(null));
   }, [user]);
   useEffect(() => {
-    if (!user) return setWatchlistIds(new Set());
-    api('/watchlist')
-      .then((items) => setWatchlistIds(new Set(items.map((item) => item.titleId))))
-      .catch(() => setWatchlistIds(new Set()));
+    if (!user) {
+      setWatchlistIds(new Set());
+      setContinueWatching([]);
+      return;
+    }
+    Promise.all([api('/watchlist'), api('/history/continue')])
+      .then(([items, history]) => {
+        setWatchlistIds(new Set(items.map((item) => item.titleId)));
+        setContinueWatching(history);
+      })
+      .catch(() => {
+        setWatchlistIds(new Set());
+        setContinueWatching([]);
+      });
   }, [user]);
 
   useEffect(() => {
@@ -55,6 +66,21 @@ export default function Catalog() {
 
   return (
     <main className="page">
+      {continueWatching.length > 0 && (
+        <section className="continue-watching">
+          <h1>Continue Watching</h1>
+          <div className="continue-row">
+            {continueWatching.map((item) => (
+              <Link to={`/title/${item.titleId}`} className="continue-card" key={item.titleId}>
+                <img src={item.posterUrl} alt={`${item.name} poster`} />
+                <strong>{item.name}</strong>
+                <div className="progress" aria-label={`${item.percent}% watched`}><span style={{ width: `${item.percent}%` }} /></div>
+                <span className="muted">{item.percent}% watched</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       <form className="filters card" onSubmit={apply}>
         <input placeholder="Search titles or cast" value={filters.q} onChange={set('q')} aria-label="Search" />
         <select value={filters.genre} onChange={set('genre')} aria-label="Genre">

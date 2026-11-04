@@ -25,6 +25,29 @@ function validate(body, partial = false) {
 module.exports = (db, { now = () => new Date() } = {}) => {
   const r = express.Router();
   const canEdit = [requireAuth, requireRole('admin', 'content_manager')];
+  const findTitle = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0');
+
+  const access = (user, titleId) => {
+    const title = findTitle.get(titleId);
+    if (!title) return { status: 404, body: { error: 'Title not found' } };
+    if (['admin', 'content_manager'].includes(user.role)) return { title };
+
+    const subscription = refreshSubscription(db, user.id, now);
+    if (!subscription || subscription.status === 'past_due') {
+      return { status: 402, body: { error: 'Choose a plan to watch this title', requiredTier: title.tier } };
+    }
+    if (subscription.rank < TIER_RANKS[title.tier]) {
+      return {
+        status: 403,
+        body: {
+          error: `${title.tier[0].toUpperCase()}${title.tier.slice(1)} plan required`,
+          requiredTier: title.tier,
+          currentPlan: subscription.plan_code,
+        },
+      };
+    }
+    return { title, subscription };
+  };
 
   // FR-2.4, 2.5, 2.6: browse, search, filter, sort, paginate
   r.get('/', (req, res) => {
@@ -56,23 +79,31 @@ module.exports = (db, { now = () => new Date() } = {}) => {
   });
 
   r.post('/:id/play', requireAuth, (req, res) => {
-    const title = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0').get(req.params.id);
-    if (!title) return res.status(404).json({ error: 'Title not found' });
-    if (['admin', 'content_manager'].includes(req.user.role)) return res.json({ ok: true, title });
+    const result = access(req.user, req.params.id);
+    if (result.status) return res.status(result.status).json(result.body);
+    res.json({ ok: true, title: result.title });
+  });
 
-    const subscription = refreshSubscription(db, req.user.id, now);
+  r.post('/:id/progress', requireAuth, (req, res) => {
+    const result = access(req.user, req.params.id);
+    if (result.status) return res.status(result.status).json(result.body);
 
-    if (!subscription || subscription.status === 'past_due') {
-      return res.status(402).json({ error: 'Choose a plan to watch this title', requiredTier: title.tier });
+    const requestedPosition = Number(req.body.positionSeconds);
+    if (!Number.isFinite(requestedPosition)) {
+      return res.status(400).json({ error: 'positionSeconds must be a number' });
     }
-    if (subscription.rank < TIER_RANKS[title.tier]) {
-      return res.status(403).json({
-        error: `${title.tier[0].toUpperCase()}${title.tier.slice(1)} plan required`,
-        requiredTier: title.tier,
-        currentPlan: subscription.plan_code,
-      });
-    }
-    res.json({ ok: true, title });
+    const durationSeconds = Math.max(0, Number(result.title.runtime || 0) * 60);
+    const positionSeconds = Math.round(Math.min(durationSeconds, Math.max(0, requestedPosition)));
+    const completed = durationSeconds > 0 && positionSeconds >= durationSeconds * 0.95;
+    db.prepare(`INSERT INTO watch_history
+      (user_id, title_id, position_seconds, duration_seconds, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, title_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds,
+        duration_seconds = excluded.duration_seconds,
+        updated_at = excluded.updated_at`)
+      .run(req.user.id, result.title.id, positionSeconds, durationSeconds, now().toISOString());
+    res.json({ positionSeconds, durationSeconds, completed });
   });
 
   // FR-2.7: detail page

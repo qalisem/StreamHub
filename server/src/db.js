@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS watchlist (
   added_at TEXT NOT NULL,
   PRIMARY KEY (user_id, title_id)
 );
+CREATE TABLE IF NOT EXISTS watch_history (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title_id INTEGER NOT NULL REFERENCES titles(id),
+  position_seconds INTEGER NOT NULL,
+  duration_seconds INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, title_id)
+);
 CREATE INDEX IF NOT EXISTS idx_titles_genre ON titles(genre);
 CREATE INDEX IF NOT EXISTS idx_titles_year ON titles(year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_current_sub
