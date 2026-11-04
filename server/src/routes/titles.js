@@ -1,10 +1,10 @@
 const express = require('express');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { refreshSubscription } = require('../billing');
 
 const FIELDS = ['name', 'type', 'genre', 'year', 'rating', 'runtime', 'synopsis', 'cast_list', 'poster_url', 'trailer_url', 'tier'];
 const SORTS = { newest: 'year DESC, id DESC', rating: 'rating DESC, name ASC', az: 'name COLLATE NOCASE ASC' };
 const PAGE_SIZE = 20; // FR-2.4
-const DAY_MS = 86400000;
 const TIER_RANKS = { basic: 1, standard: 2, premium: 3 };
 
 function validate(body, partial = false) {
@@ -25,6 +25,29 @@ function validate(body, partial = false) {
 module.exports = (db, { now = () => new Date() } = {}) => {
   const r = express.Router();
   const canEdit = [requireAuth, requireRole('admin', 'content_manager')];
+  const findTitle = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0');
+
+  const access = (user, titleId) => {
+    const title = findTitle.get(titleId);
+    if (!title) return { status: 404, body: { error: 'Title not found' } };
+    if (['admin', 'content_manager'].includes(user.role)) return { title };
+
+    const subscription = refreshSubscription(db, user.id, now);
+    if (!subscription || subscription.status === 'past_due') {
+      return { status: 402, body: { error: 'Choose a plan to watch this title', requiredTier: title.tier } };
+    }
+    if (subscription.rank < TIER_RANKS[title.tier]) {
+      return {
+        status: 403,
+        body: {
+          error: `${title.tier[0].toUpperCase()}${title.tier.slice(1)} plan required`,
+          requiredTier: title.tier,
+          currentPlan: subscription.plan_code,
+        },
+      };
+    }
+    return { title, subscription };
+  };
 
   // FR-2.4, 2.5, 2.6: browse, search, filter, sort, paginate
   r.get('/', (req, res) => {
@@ -46,7 +69,10 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     const clause = where.join(' AND ');
     const total = db.prepare(`SELECT COUNT(*) AS n FROM titles WHERE ${clause}`).get(params).n;
     const items = db.prepare(
-      `SELECT id, name, type, genre, year, rating, poster_url, tier FROM titles WHERE ${clause} ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
+      `SELECT id, name, type, genre, year, rating, poster_url, tier,
+        (SELECT ROUND(AVG(rating), 1) FROM reviews WHERE title_id = titles.id) AS review_average,
+        (SELECT COUNT(*) FROM reviews WHERE title_id = titles.id) AS review_count
+       FROM titles WHERE ${clause} ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`
     ).all(params);
     res.json({ items, page, pageSize: PAGE_SIZE, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
   });
@@ -56,38 +82,72 @@ module.exports = (db, { now = () => new Date() } = {}) => {
   });
 
   r.post('/:id/play', requireAuth, (req, res) => {
-    const title = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0').get(req.params.id);
-    if (!title) return res.status(404).json({ error: 'Title not found' });
-    if (['admin', 'content_manager'].includes(req.user.role)) return res.json({ ok: true, title });
+    const result = access(req.user, req.params.id);
+    if (result.status) return res.status(result.status).json(result.body);
+    res.json({ ok: true, title: result.title });
+  });
 
-    const findSubscription = db.prepare(`SELECT s.*, p.rank
-      FROM subscriptions s JOIN plans p ON p.code = s.plan_code
-      WHERE s.user_id = ? AND s.status IN ('active','cancelled','past_due')`);
-    let subscription = findSubscription.get(req.user.id);
-    if (subscription && now().getTime() >= new Date(subscription.period_end).getTime()) {
-      if (subscription.status === 'cancelled') {
-        db.prepare("UPDATE subscriptions SET status = 'expired' WHERE id = ?").run(subscription.id);
-        subscription = null;
-      } else if (subscription.status === 'active' && subscription.pending_plan_code) {
-        const nextPeriodEnd = new Date(new Date(subscription.period_end).getTime() + 30 * DAY_MS);
-        db.prepare(`UPDATE subscriptions
-          SET plan_code = pending_plan_code, pending_plan_code = NULL, period_end = ?
-          WHERE id = ?`).run(nextPeriodEnd.toISOString(), subscription.id);
-        subscription = findSubscription.get(req.user.id);
-      }
-    }
+  r.post('/:id/progress', requireAuth, (req, res) => {
+    const result = access(req.user, req.params.id);
+    if (result.status) return res.status(result.status).json(result.body);
 
-    if (!subscription) {
-      return res.status(402).json({ error: 'Choose a plan to watch this title', requiredTier: title.tier });
+    const requestedPosition = Number(req.body.positionSeconds);
+    if (!Number.isFinite(requestedPosition)) {
+      return res.status(400).json({ error: 'positionSeconds must be a number' });
     }
-    if (subscription.rank < TIER_RANKS[title.tier]) {
-      return res.status(403).json({
-        error: `${title.tier[0].toUpperCase()}${title.tier.slice(1)} plan required`,
-        requiredTier: title.tier,
-        currentPlan: subscription.plan_code,
-      });
+    const durationSeconds = Math.max(0, Number(result.title.runtime || 0) * 60);
+    const positionSeconds = Math.round(Math.min(durationSeconds, Math.max(0, requestedPosition)));
+    const completed = durationSeconds > 0 && positionSeconds >= durationSeconds * 0.95;
+    db.prepare(`INSERT INTO watch_history
+      (user_id, title_id, position_seconds, duration_seconds, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, title_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds,
+        duration_seconds = excluded.duration_seconds,
+        updated_at = excluded.updated_at`)
+      .run(req.user.id, result.title.id, positionSeconds, durationSeconds, now().toISOString());
+    res.json({ positionSeconds, durationSeconds, completed });
+  });
+
+  const reviewSummary = (titleId) => {
+    const summary = db.prepare('SELECT ROUND(AVG(rating), 1) AS average, COUNT(*) AS count FROM reviews WHERE title_id = ?').get(titleId);
+    const reviews = db.prepare(`SELECT r.id, r.user_id AS userId, r.rating, r.body,
+        u.display_name AS displayName, r.created_at AS createdAt, r.updated_at AS updatedAt
+      FROM reviews r JOIN users u ON u.id = r.user_id
+      WHERE r.title_id = ? ORDER BY r.updated_at DESC, r.id DESC`).all(titleId);
+    return { average: summary.average, count: summary.count, reviews };
+  };
+
+  r.get('/:id/reviews', (req, res) => {
+    if (!findTitle.get(req.params.id)) return res.status(404).json({ error: 'Title not found' });
+    res.json(reviewSummary(req.params.id));
+  });
+
+  r.put('/:id/review', requireAuth, (req, res) => {
+    if (!findTitle.get(req.params.id)) return res.status(404).json({ error: 'Title not found' });
+    const rating = req.body.rating;
+    const body = String(req.body.body || '');
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be a whole number from 1 to 5' });
     }
-    res.json({ ok: true, title });
+    if (body.length > 1000) return res.status(400).json({ error: 'Review must be at most 1000 characters' });
+    const existing = db.prepare('SELECT id FROM reviews WHERE user_id = ? AND title_id = ?').get(req.user.id, req.params.id);
+    const timestamp = now().toISOString();
+    if (existing) {
+      db.prepare('UPDATE reviews SET rating = ?, body = ?, updated_at = ? WHERE id = ?')
+        .run(rating, body, timestamp, existing.id);
+    } else {
+      db.prepare(`INSERT INTO reviews (user_id, title_id, rating, body, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)`).run(req.user.id, req.params.id, rating, body, timestamp, timestamp);
+    }
+    const saved = reviewSummary(req.params.id).reviews.find((review) => review.userId === req.user.id);
+    res.status(existing ? 200 : 201).json(saved);
+  });
+
+  r.delete('/:id/review', requireAuth, (req, res) => {
+    const result = db.prepare('DELETE FROM reviews WHERE user_id = ? AND title_id = ?').run(req.user.id, req.params.id);
+    if (!result.changes) return res.status(404).json({ error: 'Review not found' });
+    res.status(204).end();
   });
 
   // FR-2.7: detail page

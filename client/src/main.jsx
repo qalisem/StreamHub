@@ -10,6 +10,9 @@ import Admin from './pages/Admin';
 import Plans from './pages/Plans';
 import Account from './pages/Account';
 import Checkout from './pages/Checkout';
+import Receipt from './pages/Receipt';
+import MyList from './pages/MyList';
+import AdminUsers from './pages/AdminUsers';
 import './styles.css';
 
 function Nav() {
@@ -22,8 +25,10 @@ function Nav() {
         <Link to="/">Browse</Link>
         <Link to="/plans">Plans</Link>
         {isStaff(user) && <Link to="/admin">Manage titles</Link>}
+        {user?.role === 'admin' && <Link to="/admin/users">Manage users</Link>}
         {user ? (
           <>
+            <Link to="/my-list">My List</Link>
             <Link to="/account">Account</Link>
             <span className="muted">Hi, {user.displayName}</span>
             <button className="link" onClick={() => { logout(); nav('/login'); }}>Log out</button>
@@ -52,6 +57,13 @@ function LoggedInOnly({ children }) {
   return user ? children : <Navigate to="/login" />;
 }
 
+function AdminOnly({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return null;
+  if (!user) return <Navigate to="/login" />;
+  return user.role === 'admin' ? children : <p className="page">You do not have access to this page.</p>;
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -65,7 +77,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/plans" element={<Plans />} />
           <Route path="/account" element={<LoggedInOnly><Account /></LoggedInOnly>} />
           <Route path="/checkout/:plan" element={<LoggedInOnly><Checkout /></LoggedInOnly>} />
+          <Route path="/receipts/:id" element={<LoggedInOnly><Receipt /></LoggedInOnly>} />
+          <Route path="/my-list" element={<LoggedInOnly><MyList /></LoggedInOnly>} />
           <Route path="/admin" element={<StaffOnly><Admin /></StaffOnly>} />
+          <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
           <Route path="*" element={<p className="page">Page not found.</p>} />
         </Routes>
       </AuthProvider>

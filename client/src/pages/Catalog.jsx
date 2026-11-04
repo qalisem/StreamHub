@@ -14,12 +14,30 @@ export default function Catalog() {
   const [data, setData] = useState(null);
   const [genres, setGenres] = useState([]);
   const [subscription, setSubscription] = useState(null);
+  const [watchlistIds, setWatchlistIds] = useState(() => new Set());
+  const [continueWatching, setContinueWatching] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => { api('/titles/genres').then(setGenres).catch(() => {}); }, []);
   useEffect(() => {
     if (!user || isStaff(user)) return setSubscription(null);
     api('/subscription').then((result) => setSubscription(result.subscription)).catch(() => setSubscription(null));
+  }, [user]);
+  useEffect(() => {
+    if (!user) {
+      setWatchlistIds(new Set());
+      setContinueWatching([]);
+      return;
+    }
+    Promise.all([api('/watchlist'), api('/history/continue')])
+      .then(([items, history]) => {
+        setWatchlistIds(new Set(items.map((item) => item.titleId)));
+        setContinueWatching(history);
+      })
+      .catch(() => {
+        setWatchlistIds(new Set());
+        setContinueWatching([]);
+      });
   }, [user]);
 
   useEffect(() => {
@@ -31,9 +49,38 @@ export default function Catalog() {
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
   const apply = (e) => { e.preventDefault(); setPage(1); setQuery(filters); };
   const reset = () => { setFilters(EMPTY); setQuery(EMPTY); setPage(1); };
+  const toggleWatchlist = async (titleId) => {
+    try {
+      const listed = watchlistIds.has(titleId);
+      if (listed) await api(`/watchlist/${titleId}`, { method: 'DELETE' });
+      else await api('/watchlist', { method: 'POST', body: { titleId } });
+      setWatchlistIds((current) => {
+        const next = new Set(current);
+        if (listed) next.delete(titleId); else next.add(titleId);
+        return next;
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
 
   return (
     <main className="page">
+      {continueWatching.length > 0 && (
+        <section className="continue-watching">
+          <h1>Continue Watching</h1>
+          <div className="continue-row">
+            {continueWatching.map((item) => (
+              <Link to={`/title/${item.titleId}`} className="continue-card" key={item.titleId}>
+                <img src={item.posterUrl} alt={`${item.name} poster`} />
+                <strong>{item.name}</strong>
+                <div className="progress" aria-label={`${item.percent}% watched`}><span style={{ width: `${item.percent}%` }} /></div>
+                <span className="muted">{item.percent}% watched</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       <form className="filters card" onSubmit={apply}>
         <input placeholder="Search titles or cast" value={filters.q} onChange={set('q')} aria-label="Search" />
         <select value={filters.genre} onChange={set('genre')} aria-label="Genre">
@@ -61,13 +108,16 @@ export default function Catalog() {
             <p className="muted">{data.total} titles</p>
             <div className="grid">
               {data.items.map((t) => (
-                <Link key={t.id} to={`/title/${t.id}`} className="tile">
-                  <span className="poster-wrap">
-                    <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
-                    {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
-                  </span>
-                  <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · ★ {t.rating}</span></div>
-                </Link>
+                <article className="tile-card" key={t.id}>
+                  <Link to={`/title/${t.id}`} className="tile">
+                    <span className="poster-wrap">
+                      <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
+                      {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
+                    </span>
+                    <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · Catalog ★ {t.rating}</span>{t.review_average != null && <span className="review-score">Viewer ★ {t.review_average} ({t.review_count})</span>}</div>
+                  </Link>
+                  {user && <button className="btn ghost small watchlist-toggle" onClick={() => toggleWatchlist(t.id)}>{watchlistIds.has(t.id) ? '✓ In My List' : '+ My List'}</button>}
+                </article>
               ))}
             </div>
             <div className="pager">

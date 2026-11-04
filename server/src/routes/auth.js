@@ -31,6 +31,7 @@ module.exports = (db) => {
     if (!user || !bcrypt.compareSync(String(req.body.password || ''), user.password_hash)) {
       return res.status(401).json({ error: 'Invalid email or password' }); // generic on purpose
     }
+    if (!user.active) return res.status(403).json({ error: 'This account has been deactivated' });
     res.json({ token: sign(user), user: publicUser(user) });
   });
 
