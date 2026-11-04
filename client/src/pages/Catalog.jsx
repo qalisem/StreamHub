@@ -14,12 +14,19 @@ export default function Catalog() {
   const [data, setData] = useState(null);
   const [genres, setGenres] = useState([]);
   const [subscription, setSubscription] = useState(null);
+  const [watchlistIds, setWatchlistIds] = useState(() => new Set());
   const [error, setError] = useState('');
 
   useEffect(() => { api('/titles/genres').then(setGenres).catch(() => {}); }, []);
   useEffect(() => {
     if (!user || isStaff(user)) return setSubscription(null);
     api('/subscription').then((result) => setSubscription(result.subscription)).catch(() => setSubscription(null));
+  }, [user]);
+  useEffect(() => {
+    if (!user) return setWatchlistIds(new Set());
+    api('/watchlist')
+      .then((items) => setWatchlistIds(new Set(items.map((item) => item.titleId))))
+      .catch(() => setWatchlistIds(new Set()));
   }, [user]);
 
   useEffect(() => {
@@ -31,6 +38,20 @@ export default function Catalog() {
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
   const apply = (e) => { e.preventDefault(); setPage(1); setQuery(filters); };
   const reset = () => { setFilters(EMPTY); setQuery(EMPTY); setPage(1); };
+  const toggleWatchlist = async (titleId) => {
+    try {
+      const listed = watchlistIds.has(titleId);
+      if (listed) await api(`/watchlist/${titleId}`, { method: 'DELETE' });
+      else await api('/watchlist', { method: 'POST', body: { titleId } });
+      setWatchlistIds((current) => {
+        const next = new Set(current);
+        if (listed) next.delete(titleId); else next.add(titleId);
+        return next;
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
 
   return (
     <main className="page">
@@ -61,13 +82,16 @@ export default function Catalog() {
             <p className="muted">{data.total} titles</p>
             <div className="grid">
               {data.items.map((t) => (
-                <Link key={t.id} to={`/title/${t.id}`} className="tile">
-                  <span className="poster-wrap">
-                    <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
-                    {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
-                  </span>
-                  <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · ★ {t.rating}</span></div>
-                </Link>
+                <article className="tile-card" key={t.id}>
+                  <Link to={`/title/${t.id}`} className="tile">
+                    <span className="poster-wrap">
+                      <img src={t.poster_url} alt={`${t.name} poster`} loading="lazy" />
+                      {!isStaff(user) && (!subscription || RANKS[subscription.plan.code] < RANKS[t.tier]) && <span className="lock-badge">🔒 {t.tier}</span>}
+                    </span>
+                    <div><strong>{t.name}</strong><span className="muted">{t.year} · {t.genre} · ★ {t.rating}</span></div>
+                  </Link>
+                  {user && <button className="btn ghost small watchlist-toggle" onClick={() => toggleWatchlist(t.id)}>{watchlistIds.has(t.id) ? '✓ In My List' : '+ My List'}</button>}
+                </article>
               ))}
             </div>
             <div className="pager">

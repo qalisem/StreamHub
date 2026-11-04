@@ -11,8 +11,26 @@ export default function TitleDetail() {
   const [error, setError] = useState('');
   const [playError, setPlayError] = useState('');
   const [playing, setPlaying] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
 
   useEffect(() => { api(`/titles/${id}`).then(setT).catch((e) => setError(e.message)); }, [id]);
+  useEffect(() => {
+    if (!user) return setInWatchlist(false);
+    api('/watchlist')
+      .then((items) => setInWatchlist(items.some((item) => item.titleId === Number(id))))
+      .catch(() => setInWatchlist(false));
+  }, [id, user]);
+
+  const toggleWatchlist = async () => {
+    if (!user) return navigate('/login');
+    try {
+      if (inWatchlist) await api(`/watchlist/${id}`, { method: 'DELETE' });
+      else await api('/watchlist', { method: 'POST', body: { titleId: Number(id) } });
+      setInWatchlist((current) => !current);
+    } catch (requestError) {
+      setPlayError(requestError.message);
+    }
+  };
 
   const play = async () => {
     if (!user) return navigate('/login');
@@ -40,7 +58,7 @@ export default function TitleDetail() {
         <p><strong>Cast:</strong> {t.cast_list}</p>
         <div className="actions">
           <button className="btn" onClick={play}>▶ Play</button>
-          <button className="btn ghost" onClick={() => alert('Watchlist is planned for Sprint 3.')}>+ Watchlist</button>
+          <button className="btn ghost" onClick={toggleWatchlist}>{inWatchlist ? '✓ In My List' : '+ My List'}</button>
         </div>
         {playError && <p className="gate-error" role="alert">{playError} <Link to="/plans">See plans</Link></p>}
         {playing && (

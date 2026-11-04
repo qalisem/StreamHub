@@ -11,6 +11,7 @@ import Plans from './pages/Plans';
 import Account from './pages/Account';
 import Checkout from './pages/Checkout';
 import Receipt from './pages/Receipt';
+import MyList from './pages/MyList';
 import './styles.css';
 
 function Nav() {
@@ -25,6 +26,7 @@ function Nav() {
         {isStaff(user) && <Link to="/admin">Manage titles</Link>}
         {user ? (
           <>
+            <Link to="/my-list">My List</Link>
             <Link to="/account">Account</Link>
             <span className="muted">Hi, {user.displayName}</span>
             <button className="link" onClick={() => { logout(); nav('/login'); }}>Log out</button>
@@ -67,6 +69,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/account" element={<LoggedInOnly><Account /></LoggedInOnly>} />
           <Route path="/checkout/:plan" element={<LoggedInOnly><Checkout /></LoggedInOnly>} />
           <Route path="/receipts/:id" element={<LoggedInOnly><Receipt /></LoggedInOnly>} />
+          <Route path="/my-list" element={<LoggedInOnly><MyList /></LoggedInOnly>} />
           <Route path="/admin" element={<StaffOnly><Admin /></StaffOnly>} />
           <Route path="*" element={<p className="page">Page not found.</p>} />
         </Routes>

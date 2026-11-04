@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS payments (
   description TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS watchlist (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title_id INTEGER NOT NULL REFERENCES titles(id),
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, title_id)
+);
 CREATE INDEX IF NOT EXISTS idx_titles_genre ON titles(genre);
 CREATE INDEX IF NOT EXISTS idx_titles_year ON titles(year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_current_sub

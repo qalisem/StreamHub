@@ -29,11 +29,14 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .filters input[type=number] { width: 110px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px; margin-top: 10px; }
 .tile { text-decoration: none; display: grid; gap: 8px; transition: transform .15s; }
+.tile-card { display: grid; gap: 8px; align-content: start; }
 .tile:hover { transform: translateY(-3px); }
 .tile img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; background: var(--card); }
 .poster-wrap { display: block; position: relative; }
 .lock-badge { background: rgba(15, 17, 21, .9); border: 1px solid var(--line); border-radius: 99px; bottom: 9px; font-size: 12px; padding: 4px 8px; position: absolute; right: 7px; text-transform: capitalize; }
 .tile div { display: grid; gap: 2px; font-size: 14px; }
+.watchlist-toggle { width: 100%; }
+.tier-label { text-transform: capitalize; }
 .pager { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 28px 0; }
 .empty { text-align: center; padding: 60px 0; color: var(--muted); }
 .detail { display: grid; grid-template-columns: 300px 1fr; gap: 32px; }
