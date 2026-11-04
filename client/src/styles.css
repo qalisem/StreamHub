@@ -66,7 +66,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .subscription-card h2 { margin-top: 0; }
 .subscription-card h3 { font-size: 22px; margin-bottom: 6px; }
 .subscription-card h4 { margin-bottom: 10px; }
-.status-badge { background: #1f6335; border-radius: 99px; color: #b8f5c7; font-size: 12px; margin-left: 6px; padding: 3px 8px; text-transform: capitalize; vertical-align: middle; }
+.status-badge { border-radius: 99px; font-size: 12px; margin-left: 6px; padding: 3px 8px; text-transform: capitalize; vertical-align: middle; }
+.status-badge--active { background: #1f6335; color: #b8f5c7; }
+.status-badge--cancelled { background: #6b4f17; color: #ffe29a; }
+.status-badge--past_due { background: #772d32; color: #ffc2c6; }
+.status-badge--expired { background: #3a3f49; color: #c8ced8; }
 .welcome { background: #1f6335; border: 1px solid #2d8249; border-radius: 6px; color: #d8ffe2; padding: 12px; }
 .pending-plan { color: #f5c56b; }
 .plan-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }

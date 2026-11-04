@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 
 export default function Account() {
   const { user, updateUser } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [welcomeMessage, setWelcomeMessage] = useState(location.state?.welcome || '');
   const [subscription, setSubscription] = useState(null);
   const [plans, setPlans] = useState([]);
   const [subscriptionError, setSubscriptionError] = useState('');
@@ -20,6 +22,11 @@ export default function Account() {
 
   useEffect(() => setDisplayName(user?.displayName || ''), [user?.displayName]);
   useEffect(() => {
+    if (location.state?.welcome) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state?.welcome, navigate]);
+  useEffect(() => {
     Promise.all([api('/subscription'), api('/plans')])
       .then(([subscriptionData, planData]) => {
         setSubscription(subscriptionData.subscription);
@@ -29,7 +36,7 @@ export default function Account() {
   }, []);
 
   const changePlan = async (planCode) => {
-    setSubscriptionError(''); setSubscriptionMessage(''); setBusy('subscription');
+    setSubscriptionError(''); setSubscriptionMessage(''); setWelcomeMessage(''); setBusy('subscription');
     try {
       const data = await api('/subscription/change', { method: 'POST', body: { planCode } });
       setSubscription(data.subscription);
@@ -44,7 +51,7 @@ export default function Account() {
 
   const cancelSubscription = async () => {
     if (!window.confirm('Cancel your subscription at the end of this billing cycle?')) return;
-    setSubscriptionError(''); setSubscriptionMessage(''); setBusy('subscription');
+    setSubscriptionError(''); setSubscriptionMessage(''); setWelcomeMessage(''); setBusy('subscription');
     try {
       const data = await api('/subscription/cancel', { method: 'POST' });
       setSubscription(data.subscription);
@@ -87,14 +94,13 @@ export default function Account() {
   return (
     <main className="page account-page">
       <h1>Account</h1>
-      {location.state?.welcome && <p className="welcome" role="status">{location.state.welcome}</p>}
+      {(subscriptionMessage || welcomeMessage) && <p className="welcome" role="status">{subscriptionMessage || welcomeMessage}</p>}
       {subscriptionError && <p className="error" role="alert">{subscriptionError}</p>}
-      {subscriptionMessage && <p className="welcome" role="status">{subscriptionMessage}</p>}
       <section className="card subscription-card">
         <h2>Subscription</h2>
         {subscription ? (
           <>
-            <h3>{subscription.plan.name} <span className="status-badge">{subscription.status}</span></h3>
+            <h3>{subscription.plan.name} <span className={`status-badge status-badge--${subscription.status}`}>{subscription.status}</span></h3>
             <p className="muted">${(subscription.plan.price_cents / 100).toFixed(2)}/month · {subscription.plan.quality} · card ending {subscription.cardLast4}</p>
             <p>{subscription.status === 'cancelled' ? 'Access ends' : 'Next billing date'}: <strong>{new Date(subscription.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong></p>
             {subscription.pendingPlan && <p className="pending-plan">Switching to {subscription.pendingPlan.name} on {new Date(subscription.periodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>}
