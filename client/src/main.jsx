@@ -13,6 +13,9 @@ import Checkout from './pages/Checkout';
 import Receipt from './pages/Receipt';
 import MyList from './pages/MyList';
 import AdminUsers from './pages/AdminUsers';
+import AdminEmails from './pages/AdminEmails';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import './styles.css';
 
 function Nav() {
@@ -26,6 +29,7 @@ function Nav() {
         <Link to="/plans">Plans</Link>
         {isStaff(user) && <Link to="/admin">Manage titles</Link>}
         {user?.role === 'admin' && <Link to="/admin/users">Manage users</Link>}
+        {user?.role === 'admin' && <Link to="/admin/emails">Emails</Link>}
         {user ? (
           <>
             <Link to="/my-list">My List</Link>
@@ -74,6 +78,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/title/:id" element={<TitleDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/account" element={<LoggedInOnly><Account /></LoggedInOnly>} />
           <Route path="/checkout/:plan" element={<LoggedInOnly><Checkout /></LoggedInOnly>} />
@@ -81,6 +87,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/my-list" element={<LoggedInOnly><MyList /></LoggedInOnly>} />
           <Route path="/admin" element={<StaffOnly><Admin /></StaffOnly>} />
           <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
+          <Route path="/admin/emails" element={<AdminOnly><AdminEmails /></AdminOnly>} />
           <Route path="*" element={<p className="page">Page not found.</p>} />
         </Routes>
       </AuthProvider>

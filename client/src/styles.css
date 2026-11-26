@@ -134,3 +134,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
   .nav, .no-print { display: none !important; }
   .receipt-card { border: 0; box-shadow: none; }
 }
+
+/* Story 15 */
+.email-body { white-space: pre-wrap; font-family: inherit; background: var(--card, #f6f7f9); padding: 12px; border-radius: 8px; margin: 0; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: rgba(255, 255, 255, 0.04); }
