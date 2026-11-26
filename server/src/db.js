@@ -98,6 +98,24 @@ CREATE TABLE IF NOT EXISTS password_resets (
   used_at TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS episodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title_id INTEGER NOT NULL REFERENCES titles(id),
+  season INTEGER NOT NULL CHECK (season BETWEEN 1 AND 99),
+  episode INTEGER NOT NULL CHECK (episode BETWEEN 1 AND 99),
+  name TEXT NOT NULL,
+  runtime INTEGER NOT NULL DEFAULT 45,
+  synopsis TEXT NOT NULL DEFAULT '',
+  UNIQUE (title_id, season, episode)
+);
+CREATE TABLE IF NOT EXISTS episode_progress (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+  position_seconds INTEGER NOT NULL,
+  duration_seconds INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, episode_id)
+);
 CREATE INDEX IF NOT EXISTS idx_titles_genre ON titles(genre);
 CREATE INDEX IF NOT EXISTS idx_titles_year ON titles(year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_current_sub
@@ -120,6 +138,10 @@ function createDb(file = process.env.DB_FILE || 'streamhub.db') {
   const subscriptionColumns = db.prepare('PRAGMA table_info(subscriptions)').all();
   if (!subscriptionColumns.some((column) => column.name === 'reminder_sent_for')) {
     db.exec('ALTER TABLE subscriptions ADD COLUMN reminder_sent_for TEXT');
+  }
+  const historyColumns = db.prepare('PRAGMA table_info(watch_history)').all();
+  if (!historyColumns.some((column) => column.name === 'last_episode_id')) {
+    db.exec('ALTER TABLE watch_history ADD COLUMN last_episode_id INTEGER REFERENCES episodes(id) ON DELETE SET NULL');
   }
   const addPlan = db.prepare(`INSERT OR IGNORE INTO plans
     (code, name, price_cents, quality, screens, rank) VALUES (?, ?, ?, ?, ?, ?)`);

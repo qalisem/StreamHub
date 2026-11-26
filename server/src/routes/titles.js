@@ -150,6 +150,82 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     res.status(204).end();
   });
 
+  // Story 23, FR-2.3: seasons and episodes
+  const episodeJson = (e) => ({ id: e.id, season: e.season, episode: e.episode, name: e.name, runtime: e.runtime, synopsis: e.synopsis });
+  const findEpisode = db.prepare('SELECT * FROM episodes WHERE id = ? AND title_id = ?');
+
+  r.get('/:id/episodes', (req, res) => {
+    const title = findTitle.get(req.params.id);
+    if (!title) return res.status(404).json({ error: 'Title not found' });
+    const rows = db.prepare('SELECT * FROM episodes WHERE title_id = ? ORDER BY season, episode').all(title.id);
+    const seasons = [];
+    for (const row of rows) {
+      if (!seasons.length || seasons[seasons.length - 1].season !== row.season) seasons.push({ season: row.season, episodes: [] });
+      seasons[seasons.length - 1].episodes.push(episodeJson(row));
+    }
+    res.json({ titleId: title.id, seasons });
+  });
+
+  r.post('/:id/episodes', ...canEdit, (req, res) => {
+    const title = findTitle.get(req.params.id);
+    if (!title) return res.status(404).json({ error: 'Title not found' });
+    if (title.type !== 'show') return res.status(400).json({ error: 'Episodes can only be added to shows' });
+    const season = Number(req.body.season);
+    const episode = Number(req.body.episode);
+    const name = String(req.body.name || '').trim();
+    const runtime = req.body.runtime === undefined || req.body.runtime === '' ? 45 : Number(req.body.runtime);
+    const errors = [];
+    if (!Number.isInteger(season) || season < 1 || season > 99) errors.push('season must be a whole number from 1 to 99');
+    if (!Number.isInteger(episode) || episode < 1 || episode > 99) errors.push('episode must be a whole number from 1 to 99');
+    if (!name || name.length > 120) errors.push('name is required (up to 120 characters)');
+    if (!Number.isInteger(runtime) || runtime < 1 || runtime > 300) errors.push('runtime must be 1 to 300 minutes');
+    if (errors.length) return res.status(400).json({ error: errors.join(', ') });
+    if (db.prepare('SELECT id FROM episodes WHERE title_id = ? AND season = ? AND episode = ?').get(title.id, season, episode)) {
+      return res.status(409).json({ error: `Season ${season}, episode ${episode} already exists` });
+    }
+    const info = db.prepare('INSERT INTO episodes (title_id, season, episode, name, runtime, synopsis) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(title.id, season, episode, name, runtime, String(req.body.synopsis || '').trim());
+    res.status(201).json(episodeJson(db.prepare('SELECT * FROM episodes WHERE id = ?').get(info.lastInsertRowid)));
+  });
+
+  r.delete('/:id/episodes/:episodeId', ...canEdit, (req, res) => {
+    const info = db.prepare('DELETE FROM episodes WHERE id = ? AND title_id = ?').run(req.params.episodeId, req.params.id);
+    if (!info.changes) return res.status(404).json({ error: 'Episode not found' });
+    res.status(204).end();
+  });
+
+  // Progress for each episode of a show, for the signed-in user
+  r.get('/:id/episodes/progress', requireAuth, (req, res) => {
+    const rows = db.prepare(`SELECT p.episode_id AS episodeId, p.position_seconds AS positionSeconds,
+        p.duration_seconds AS durationSeconds, p.updated_at AS updatedAt
+      FROM episode_progress p JOIN episodes e ON e.id = p.episode_id
+      WHERE p.user_id = ? AND e.title_id = ?`).all(req.user.id, req.params.id);
+    res.json(rows.map((row) => ({ ...row, completed: row.positionSeconds >= row.durationSeconds * 0.95 })));
+  });
+
+  // Watching an episode saves its own position and moves the show's Continue Watching entry to it
+  r.post('/:id/episodes/:episodeId/progress', requireAuth, (req, res) => {
+    const result = access(req.user, req.params.id);
+    if (result.status) return res.status(result.status).json(result.body);
+    const episode = findEpisode.get(req.params.episodeId, result.title.id);
+    if (!episode) return res.status(404).json({ error: 'Episode not found' });
+    const requested = Number(req.body.positionSeconds);
+    if (!Number.isFinite(requested)) return res.status(400).json({ error: 'positionSeconds must be a number' });
+    const durationSeconds = episode.runtime * 60;
+    const positionSeconds = Math.round(Math.min(durationSeconds, Math.max(0, requested)));
+    const updatedAt = now().toISOString();
+    db.prepare(`INSERT INTO episode_progress (user_id, episode_id, position_seconds, duration_seconds, updated_at)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, episode_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds, duration_seconds = excluded.duration_seconds, updated_at = excluded.updated_at`)
+      .run(req.user.id, episode.id, positionSeconds, durationSeconds, updatedAt);
+    db.prepare(`INSERT INTO watch_history (user_id, title_id, position_seconds, duration_seconds, updated_at, last_episode_id)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, title_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds, duration_seconds = excluded.duration_seconds,
+        updated_at = excluded.updated_at, last_episode_id = excluded.last_episode_id`)
+      .run(req.user.id, result.title.id, positionSeconds, durationSeconds, updatedAt, episode.id);
+    res.json({ episodeId: episode.id, positionSeconds, durationSeconds, completed: positionSeconds >= durationSeconds * 0.95 });
+  });
+
   // FR-2.7: detail page
   r.get('/:id', (req, res) => {
     const t = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0').get(req.params.id);

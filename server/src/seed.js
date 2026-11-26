@@ -65,6 +65,22 @@ function seed(db, count = 50, { now = () => new Date() } = {}) {
     }
   });
   tx();
+
+  // Story 23, FR-2.3: two seasons of three episodes for every seeded show
+  const EPISODE_NAMES = ['Pilot', 'The Signal', 'Crossing Over', 'Homecoming', 'Fault Lines', 'The Long Night'];
+  const addEpisode = db.prepare(`INSERT OR IGNORE INTO episodes (title_id, season, episode, name, runtime, synopsis)
+    VALUES (?, ?, ?, ?, 45, ?)`);
+  const shows = db.prepare("SELECT id, name FROM titles WHERE type = 'show' AND deleted = 0").all();
+  db.transaction(() => {
+    for (const show of shows) {
+      for (let season = 1; season <= 2; season++) {
+        for (let episode = 1; episode <= 3; episode++) {
+          const name = EPISODE_NAMES[(season - 1) * 3 + episode - 1];
+          addEpisode.run(show.id, season, episode, name, `Season ${season}, episode ${episode} of ${show.name}.`);
+        }
+      }
+    }
+  })();
 }
 
 module.exports = { seed };

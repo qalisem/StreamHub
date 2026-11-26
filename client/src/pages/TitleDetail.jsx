@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { isStaff, useAuth } from '../auth';
+import Episodes from './Episodes';
 
 export default function TitleDetail() {
   const { id } = useParams();
@@ -130,7 +131,7 @@ export default function TitleDetail() {
         <p>{t.synopsis}</p>
         <p><strong>Cast:</strong> {t.cast_list}</p>
         <div className="actions">
-          <button className="btn" onClick={play}>▶ Play</button>
+          {t.type === 'movie' && <button className="btn" onClick={play}>▶ Play</button>}
           <button className="btn ghost" onClick={toggleWatchlist}>{inWatchlist ? '✓ In My List' : '+ My List'}</button>
         </div>
         {playError && <p className="gate-error" role="alert">{playError} <Link to="/plans">See plans</Link></p>}
@@ -142,6 +143,7 @@ export default function TitleDetail() {
             <button className="btn ghost small" onClick={() => setPlaying(false)}>Pause</button>
           </section>
         )}
+        {t.type === 'show' && <Episodes titleId={Number(id)} user={user} staff={isStaff(user)} onNeedLogin={() => navigate('/login')} />}
         {t.trailer_url
           ? <iframe title="Trailer" src={t.trailer_url} allowFullScreen />
           : <p className="muted">Trailer not available.</p>}

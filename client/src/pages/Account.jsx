@@ -221,7 +221,7 @@ export default function Account() {
             <Link to={`/title/${item.titleId}`} className="history-item" key={item.titleId}>
               <img src={item.posterUrl} alt={`${item.name} poster`} />
               <div>
-                <strong>{item.name}</strong>
+                <strong>{item.name}{item.lastEpisode && ` · S${item.lastEpisode.season}:E${item.lastEpisode.episode}`}</strong>
                 <div className="progress"><span style={{ width: `${item.percent}%` }} /></div>
                 <span className="muted">{item.percent}% watched · {new Date(item.updatedAt).toLocaleDateString()}</span>
               </div>
