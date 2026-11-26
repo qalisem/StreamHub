@@ -152,3 +152,8 @@ tr.clickable:hover { background: rgba(255, 255, 255, 0.04); }
 .episode-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .episode-form { margin-top: 14px; }
 @media (max-width: 600px) { .episode { flex-direction: column; align-items: stretch; } .episode-actions { flex-direction: row; } }
+
+/* Story 24: poster upload */
+.poster-upload { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.poster-upload img { width: 60px; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; }
+.poster-upload .btn { cursor: pointer; }

@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { refreshSubscription } = require('../billing');
+const { parsePoster, savePoster, removeUploaded } = require('../posters');
 
 const FIELDS = ['name', 'type', 'genre', 'year', 'rating', 'runtime', 'synopsis', 'cast_list', 'poster_url', 'trailer_url', 'tier'];
 const SORTS = { newest: 'year DESC, id DESC', rating: 'rating DESC, name ASC', az: 'name COLLATE NOCASE ASC' };
@@ -22,7 +23,7 @@ function validate(body, partial = false) {
   return errors;
 }
 
-module.exports = (db, { now = () => new Date() } = {}) => {
+module.exports = (db, { now = () => new Date(), uploadDir } = {}) => {
   const r = express.Router();
   const canEdit = [requireAuth, requireRole('admin', 'content_manager')];
   const findTitle = db.prepare('SELECT * FROM titles WHERE id = ? AND deleted = 0');
@@ -224,6 +225,18 @@ module.exports = (db, { now = () => new Date() } = {}) => {
         updated_at = excluded.updated_at, last_episode_id = excluded.last_episode_id`)
       .run(req.user.id, result.title.id, positionSeconds, durationSeconds, updatedAt, episode.id);
     res.json({ episodeId: episode.id, positionSeconds, durationSeconds, completed: positionSeconds >= durationSeconds * 0.95 });
+  });
+
+  // Story 24: admins and content managers upload a poster image
+  r.post('/:id/poster', ...canEdit, (req, res) => {
+    const title = findTitle.get(req.params.id);
+    if (!title) return res.status(404).json({ error: 'Title not found' });
+    const poster = parsePoster(req.body.image);
+    if (poster.error) return res.status(poster.status).json({ error: poster.error });
+    const url = savePoster(uploadDir, title.id, poster);
+    db.prepare('UPDATE titles SET poster_url = ? WHERE id = ?').run(url, title.id);
+    removeUploaded(uploadDir, title.poster_url);
+    res.json(db.prepare('SELECT * FROM titles WHERE id = ?').get(title.id));
   });
 
   // FR-2.7: detail page
