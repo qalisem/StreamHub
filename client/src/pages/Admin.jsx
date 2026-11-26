@@ -33,6 +33,24 @@ export default function Admin() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Story 24: upload a poster image for the title being edited
+  const uploadPoster = (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return setMsg({ text: 'Choose a PNG, JPEG, or WebP image.', error: true });
+    if (file.size > 2 * 1024 * 1024) return setMsg({ text: 'Poster must be 2 MB or smaller.', error: true });
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const updated = await api(`/titles/${editing}/poster`, { method: 'POST', body: { image: reader.result } });
+        setForm((f) => ({ ...f, poster_url: updated.poster_url }));
+        setMsg({ text: 'Poster uploaded.', error: false }); load();
+      } catch (err) { setMsg({ text: err.message, error: true }); }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const remove = async (t) => {
     if (!confirm(`Remove "${t.name}" from the catalog?`)) return;
     await api(`/titles/${t.id}`, { method: 'DELETE' });
@@ -52,6 +70,13 @@ export default function Admin() {
         <label>Plan tier<select value={form.tier} onChange={set('tier')}><option>basic</option><option>standard</option><option>premium</option></select></label>
         <label>Cast<input value={form.cast_list} onChange={set('cast_list')} placeholder="Comma separated" /></label>
         <label>Poster URL<input value={form.poster_url} onChange={set('poster_url')} /></label>
+        {editing ? (
+          <div className="poster-upload">
+            {form.poster_url && <img src={form.poster_url} alt="Current poster" />}
+            <label className="btn ghost small">Upload poster<input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadPoster} hidden /></label>
+            <span className="muted">PNG, JPEG, or WebP, up to 2 MB</span>
+          </div>
+        ) : <p className="muted">Save the title first, then edit it to upload a poster image.</p>}
         <label>Trailer URL<input value={form.trailer_url} onChange={set('trailer_url')} /></label>
         <label className="full">Synopsis<textarea rows="3" value={form.synopsis} onChange={set('synopsis')} /></label>
         <div className="full actions">
