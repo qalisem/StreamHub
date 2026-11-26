@@ -74,6 +74,7 @@ export default function Catalog() {
               <Link to={`/title/${item.titleId}`} className="continue-card" key={item.titleId}>
                 <img src={item.posterUrl} alt={`${item.name} poster`} />
                 <strong>{item.name}</strong>
+                {item.lastEpisode && <span className="muted">S{item.lastEpisode.season}:E{item.lastEpisode.episode} {item.lastEpisode.name}</span>}
                 <div className="progress" aria-label={`${item.percent}% watched`}><span style={{ width: `${item.percent}%` }} /></div>
                 <span className="muted">{item.percent}% watched</span>
               </Link>
