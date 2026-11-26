@@ -81,6 +81,23 @@ CREATE TABLE IF NOT EXISTS reviews (
   updated_at TEXT NOT NULL,
   UNIQUE (user_id, title_id)
 );
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  to_email TEXT NOT NULL,
+  template TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS password_resets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_titles_genre ON titles(genre);
 CREATE INDEX IF NOT EXISTS idx_titles_year ON titles(year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_current_sub
@@ -99,6 +116,10 @@ function createDb(file = process.env.DB_FILE || 'streamhub.db') {
   const userColumns = db.prepare('PRAGMA table_info(users)').all();
   if (!userColumns.some((column) => column.name === 'active')) {
     db.exec('ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+  }
+  const subscriptionColumns = db.prepare('PRAGMA table_info(subscriptions)').all();
+  if (!subscriptionColumns.some((column) => column.name === 'reminder_sent_for')) {
+    db.exec('ALTER TABLE subscriptions ADD COLUMN reminder_sent_for TEXT');
   }
   const addPlan = db.prepare(`INSERT OR IGNORE INTO plans
     (code, name, price_cents, quality, screens, rank) VALUES (?, ?, ?, ?, ?, ?)`);

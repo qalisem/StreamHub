@@ -1,4 +1,5 @@
 const express = require('express');
+const { queueEmail } = require('../email');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const ROLES = ['subscriber', 'content_manager', 'admin'];
@@ -75,7 +76,17 @@ module.exports = (db) => {
       WHERE user_id = ? AND status IN ('active','past_due') ORDER BY id DESC LIMIT 1`).get(req.params.id);
     if (!subscription) return res.status(404).json({ error: 'Current subscription not found' });
     db.prepare("UPDATE subscriptions SET status = 'cancelled', cancelled_at = datetime('now') WHERE id = ?").run(subscription.id);
+    const plan = db.prepare('SELECT name FROM plans WHERE code = ?').get(subscription.plan_code);
+    queueEmail(db, { userId: subscription.user_id, template: 'cancellation', data: { plan: plan.name, accessUntil: subscription.period_end } });
     res.json({ subscription: { plan: subscription.plan_code, status: 'cancelled', periodEnd: subscription.period_end } });
+  });
+
+  // Story 15: outbox viewer, so admins (and the demo) can see what was sent
+  router.get('/emails', (req, res) => {
+    const to = String(req.query.to || '').trim().toLowerCase();
+    const rows = db.prepare(`SELECT id, to_email AS toEmail, template, subject, body, created_at AS createdAt
+      FROM email_outbox WHERE (? = '' OR to_email LIKE ?) ORDER BY id DESC LIMIT 100`).all(to, `%${to}%`);
+    res.json(rows);
   });
 
   router.put('/plans/:code', (req, res) => {

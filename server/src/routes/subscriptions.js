@@ -1,4 +1,5 @@
 const express = require('express');
+const { queueEmail } = require('../email');
 const { requireAuth } = require('../middleware/auth');
 const { charge } = require('../payments');
 const { refreshSubscription } = require('../billing');
@@ -128,6 +129,7 @@ module.exports = (db, { now = () => new Date() } = {}) => {
     db.prepare(`UPDATE subscriptions
       SET status = 'cancelled', cancelled_at = ?, pending_plan_code = NULL
       WHERE id = ?`).run(now().toISOString(), subscription.id);
+    queueEmail(db, { userId: req.user.id, template: 'cancellation', now, data: { plan: subscription.plan_name, accessUntil: subscription.period_end } }); // FR-7.3
     res.json({
       subscription: serialize(currentFor(req.user.id)),
       message: 'Subscription cancelled. Access continues until the end of the billing cycle.',

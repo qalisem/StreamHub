@@ -25,7 +25,7 @@ export default function Login() {
         <label>Password<input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
         {error && <p className="error" role="alert">{error}</p>}
         <button className="btn" disabled={busy}>{busy ? 'Logging in...' : 'Log in'}</button>
-        <p className="muted">No account? <Link to="/register">Sign up</Link></p>
+        <p className="muted"><Link to="/forgot-password">Forgot password?</Link> · No account? <Link to="/register">Sign up</Link></p>
       </form>
     </main>
   );
